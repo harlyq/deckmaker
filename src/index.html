@@ -25,34 +25,81 @@
 
     <script type="text/javascript">
     var board = null;
+    var tool = "";
+    var page = "";
+    var deck = "";
+    var panZoomTool = null;
+    var autoTemplateTool = null;
+    var alphaFillTool = null;
+    var deckPanZoomTool = null;
+    var boardPanZoomTool = null;
 
     function setTool(newTool) {
-        var oldTool = board.getToolSet();
-        // if (oldTool === newTool)
-        //     return;
+        if (tool) {
+            var elem = document.getElementById(tool);
+            if (elem)
+                elem.classList.remove("current");
+        }
 
-        if (oldTool)
-            document.getElementById(oldTool).classList.remove("current");
-
-        newTool = board.setToolSet(newTool).getToolSet();
+        tool = newTool;
+        switch (newTool) {
+            case "autoTemplate":
+                board.setTools([autoTemplateTool, panZoomTool]);
+                break;
+            case "alphaFill":
+                board.setTools([alphaFillTool, panZoomTool]);
+                break;
+            case "panZoom":
+                board.setTools([panZoomTool]);
+                break;
+            case "deckPanZoom":
+                board.setTools([deckPanZoomTool]);
+                break;
+            case "boardPanZoom":
+                board.setTools([boardPanZoomTool]);
+                break;
+        }
 
         if (newTool) {
-            document.getElementById(newTool).classList.add("current");
+            var elem = document.getElementById(newTool);
+            if (elem)
+                elem.classList.add("current");
         }
     }
 
     function setPage(newPage) {
-        var oldPage = board.getPage();
-        // if (oldPage === newPage)
-        //     return;
+        if (page)
+            document.getElementById(page).classList.remove("current");
 
-        if (oldPage)
-            document.getElementById(oldPage).classList.remove("current");
-
-        newPage = board.setPage(newPage).getPage();
+        page = newPage;
+        board.setPageByName(newPage);
 
         if (newPage) {
             document.getElementById(newPage).classList.add("current");
+        }
+
+        switch (newPage) {
+            case "board":
+                setTool("boardPanZoom");
+                break;
+            case "deck":
+                setTool("deckPanZoom");
+                break;
+            case "cutout1":
+                setTool("alphaFill");
+                break;
+        }
+    }
+
+    function setDeck(newDeck) {
+        if (deck)
+            document.getElementById(deck).classList.remove("current");
+
+        deck = newDeck;
+        board.setDeckByName(newDeck);
+
+        if (newDeck) {
+            document.getElementById(newDeck).classList.add("current");
         }
     }
 
@@ -62,6 +109,10 @@
 
     function clickPage(e) {
         setPage(e.target.id);
+    }
+
+    function clickDeck(e) {
+        setDeck(e.target.id);
     }
 
     function addPicture(e) {
@@ -81,7 +132,7 @@
         board = new DeckMaker.Board(document.getElementById('canvas'));
 
         document.getElementById("board").addEventListener("click", clickPage);
-        document.getElementById("deck").addEventListener("click", clickPage);
+        document.getElementById("deckPage").addEventListener("click", clickPage);
         document.getElementById("cutout1").addEventListener("click", clickPage);
 
         document.getElementById("select").addEventListener("click", clickTool);
@@ -89,21 +140,59 @@
         document.getElementById("alphaFill").addEventListener("click", clickTool);
         document.getElementById("picture").addEventListener("change", addPicture);
 
-        setTool("autoTemplate");
+        document.getElementById("deck1").addEventListener("click", clickDeck);
+        document.getElementById("deck2").addEventListener("click", clickDeck);
+        document.getElementById("deck3").addEventListener("click", clickDeck);
+        document.getElementById("deck4").addEventListener("click", clickDeck);
+
+        var boardPage = new DeckMaker.LayerPage("board");
+        board.addPage(boardPage);
+
+        boardPage.addLayer(new DeckMaker.Layer("picture"));
+
+        var deck1 = new DeckMaker.Deck("deck1");
+        var deck2 = new DeckMaker.Deck("deck2");
+        var deck3 = new DeckMaker.Deck("deck3");
+        var deck4 = new DeckMaker.Deck("deck4");
+        board.addDeck(deck1).addDeck(deck2).addDeck(deck3).addDeck(deck4);
+
+        var deckPage = new DeckMaker.DeckPage("deckPage");
+        board.addPage(deckPage);
+
+        var cutout1 = new DeckMaker.LayerPage("cutout1");
+        board.addPage(cutout1);
+
+        cutout1.addLayer(new DeckMaker.Layer("picture"));
+        cutout1.addLayer(new DeckMaker.Layer("template"));
+        cutout1.addLayer(new DeckMaker.Layer("tool"));
+
+        alphaFillTool = new DeckMaker.AlphaFillTool("alphaFill", cutout1);
+        autoTemplateTool = new DeckMaker.AutoTemplateTool("autoTemplate", cutout1, deck1);
+        panZoomTool = new DeckMaker.PanZoomTool("panZoom", cutout1);
+        boardPanZoomTool = new DeckMaker.PanZoomTool("panZoom", board);
+        deckPanZoomTool = new DeckMaker.PanZoomTool("panZoom", deckPage);
+
         setPage("cutout1");
+        setTool("alphaFill");
+        setDeck("deck1");
     }
     </script>
 </head>
 
 <body>
     <div id="board" class="button">BOARD</div>
-    <div id="deck" class="button">DECK</div>
+    <div id="deckPage" class="button">DECK</div>
     <div id="cutout1" class="button">CUTOUT 1</div>
     <div></div>
     <input id="picture" type="file"></input>
     <div id="autoTemplate" class="button">AUTO TEMPLATE</div>
     <div id="alphaFill" class="button">ALPHA FILL</div>
     <div id="select" class="button">SELECT</div>
+    <div></div>
+    <div id="deck1" class="button">DECK1</div>
+    <div id="deck2" class="button">DECK2</div>
+    <div id="deck3" class="button">DECK3</div>
+    <div id="deck4" class="button">DECK4</div>
     <div></div>
     <canvas id="canvas" width="400" height="400"></canvas>
 </body>

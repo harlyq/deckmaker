@@ -1,5 +1,17 @@
 module DeckMaker {
 
+    var env: {
+        [key: string]: any
+    } = {};
+
+    function setEnv(key: string, value: any) {
+        env[key] = value;
+    }
+
+    function getEnv(key: string): any {
+        return env[key];
+    }
+
     interface TouchEvent {
         touches: any[];
         preventDefault: () => void;
@@ -108,6 +120,7 @@ module DeckMaker {
         return imageData;
     }
 
+    //---------------------------------
     // values in range [0,255]
     export class Color {
         constructor(public r: number, public g: number, public b: number, public a: number = 255) {}
@@ -125,11 +138,13 @@ module DeckMaker {
         }
     }
 
+    //---------------------------------
     export interface XY {
         x: number;
         y: number;
     }
 
+    //---------------------------------
     export class Transform {
         sx: number = 1;
         sy: number = 1;
@@ -185,6 +200,7 @@ module DeckMaker {
         }
     }
 
+    //---------------------------------
     export class Shape {
         transform: Transform = new Transform();
 
@@ -195,32 +211,19 @@ module DeckMaker {
         }
     }
 
-    export class Options {
-        getGroupColor(group: number): string {
-            switch (group) {
-                case 1:
-                    return 'red';
-                case 2:
-                    return 'blue';
-                case 3:
-                    return 'green';
-                default:
-                    return 'white';
-            }
-        }
-    }
-    var g_options: Options = new Options();
-
+    //---------------------------------
     export enum TouchState {
         Down, Move, Up, Wheel
     };
 
+    //---------------------------------
     //TODO needed for export on tool - no way to make it private?!!!
     export class Touch {
         constructor(public state: TouchState, public x: number, public y: number,
             public dx: number, public dy: number, public x2 ? : number, public y2 ? : number) {}
     }
 
+    //---------------------------------
     class TouchManager {
         lastX: number = 0;
         lastY: number = 0;
@@ -333,13 +336,39 @@ module DeckMaker {
     }
 
 
-    class Template extends Shape {
+    //---------------------------------
+    export class Template extends Shape {
+        private vertices: number[];
         private isBack: boolean = false;
-        private group: number = 1;
-        private count: number = 1;
+        count: number = 1;
+        width: number = 0;
+        height: number = 0;
 
-        constructor(private vertices: number[]) {
+        constructor(vertices: number[], private deck: Deck, private page: LayerPage) {
             super();
+            this.setVertices(vertices);
+        }
+
+        setVertices(vertices: number[]) {
+            this.vertices = vertices;
+
+            var minX = 1e10;
+            var maxX = -1e10;
+            var minY = 1e10;
+            var maxY = -1e10;
+
+            for (var i = 0; i < vertices.length; i += 2) {
+                var x = vertices[i];
+                var y = vertices[i + 1];
+
+                minX = Math.min(x, minX);
+                maxX = Math.max(x, maxX);
+                minY = Math.min(y, minY);
+                maxY = Math.max(y, maxY);
+            }
+
+            this.width = maxX - minX;
+            this.height = maxY - minY;
         }
 
         draw(ctx: CanvasRenderingContext2D) {
@@ -347,16 +376,29 @@ module DeckMaker {
             if (vertices.length < 4)
                 return;
 
-            ctx.strokeStyle = g_options.getGroupColor(this.group);
+            ctx.strokeStyle = this.deck.color;
             ctx.lineWidth = 3;
 
             ctx.beginPath();
-            ctx.moveTo(vertices[0], vertices[1])
+            ctx.moveTo(vertices[0], vertices[1]);
             for (var i = 2; i < this.vertices.length; i += 2) {
                 ctx.lineTo(vertices[i], vertices[i + 1]);
             }
             ctx.closePath();
             ctx.stroke();
+        }
+
+        drawCard(ctx: CanvasRenderingContext2D, cardWidth: number, cardHeight: number) {
+            ctx.save();
+
+            var pictureLayer = this.page.getLayer("picture");
+            var tx = this.transform.tx;
+            var ty = this.transform.ty;
+            var w = this.width;
+            var h = this.height;
+            ctx.drawImage(pictureLayer.canvas, tx, ty, w, h, 0, 0, cardWidth, cardHeight);
+
+            ctx.restore();
         }
 
         isInside(x: number, y: number): boolean {
@@ -384,6 +426,7 @@ module DeckMaker {
         }
     }
 
+    //---------------------------------
     class Picture extends Shape {
         private image = new Image();
         width: number = 0;
@@ -413,10 +456,11 @@ module DeckMaker {
         }
     }
 
+    //---------------------------------
     export class Tool {
         hasFocus: boolean = false; // what if two tools have focus???
 
-        constructor(public name: string, public page: Page) {}
+        constructor(public name: string) {}
 
         draw(ctx: CanvasRenderingContext2D) {}
 
@@ -427,29 +471,33 @@ module DeckMaker {
         }
     }
 
+    //---------------------------------
     export class TemplateTool extends Tool {
-        constructor(name: string, page: Page) {
-            super(name, page);
+        constructor(name: string) {
+            super(name);
         }
     }
 
+    //---------------------------------
     export class SelectTool extends Tool {
-        constructor(name: string, page: Page) {
-            super(name, page);
+        constructor(name: string) {
+            super(name);
         }
     }
 
+    //---------------------------------
     export class PanZoomTool extends Tool {
         oldDistance: number;
         oldCX: number;
         oldCY: number;
 
-        constructor(name: string, page: Page) {
-            super(name, page);
+        constructor(name: string) {
+            super(name);
         }
 
         touched(touch: Touch) {
-            var panZoom = this.page.panZoom;
+            var page = getEnv("page");
+            var panZoom = page.panZoom;
             var hasChanged = false;
 
             switch (touch.state) {
@@ -488,16 +536,17 @@ module DeckMaker {
                     break;
             }
 
-            this.page.rebuildAll();
+            page.refresh();
         }
     }
 
+    //---------------------------------
     export class AlphaFillTool extends Tool {
         private canvas: HTMLCanvasElement;
         private ctx: CanvasRenderingContext2D;
 
-        constructor(name: string, page: Page) {
-            super(name, page);
+        constructor(name: string) {
+            super(name);
 
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
@@ -507,12 +556,16 @@ module DeckMaker {
             if (touch.state !== TouchState.Down)
                 return;
 
-            var pictureLayer = this.page.getLayer("picture");
-            var picture: Picture = < Picture > pictureLayer.getShapeFromTouch(touch.x, touch.y);
+            var layerPage = getEnv("layerPage");
+            if (!layerPage)
+                return;
+
+            var pos = layerPage.panZoom.getLocal(touch.x, touch.y);
+            var pictureLayer = layerPage.getLayer("picture");
+            var picture: Picture = < Picture > pictureLayer.getShapeFromTouch(pos.x, pos.y);
             if (picture === null)
                 return;
 
-            var pos = pictureLayer.panZoom.getLocal(touch.x, touch.y);
             pos = picture.transform.getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
@@ -546,16 +599,17 @@ module DeckMaker {
             this.ctx.putImageData(imageData, 0, 0);
             picture.setsrc(this.canvas.toDataURL());
 
-            this.page.rebuildLayer("picture");
+            layerPage.rebuildLayer("picture");
         }
     }
 
+    //---------------------------------
     export class AutoTemplateTool extends Tool {
         private canvas: HTMLCanvasElement;
         private ctx: CanvasRenderingContext2D;
 
-        constructor(name: string, page: Page) {
-            super(name, page);
+        constructor(name: string) {
+            super(name);
 
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
@@ -569,12 +623,17 @@ module DeckMaker {
             if (touch.state !== TouchState.Down)
                 return;
 
-            var pictureLayer = this.page.getLayer("picture");
-            var picture: Picture = < Picture > pictureLayer.getShapeFromTouch(touch.x, touch.y);
+            var layerPage = getEnv("layerPage");
+            var deck = getEnv("deck");
+            if (!layerPage || !deck)
+                return;
+
+            var pos = layerPage.panZoom.getLocal(touch.x, touch.y);
+            var pictureLayer = layerPage.getLayer("picture");
+            var picture: Picture = < Picture > pictureLayer.getShapeFromTouch(pos.x, pos.y);
             if (picture === null)
                 return;
 
-            var pos = pictureLayer.panZoom.getLocal(touch.x, touch.y);
             pos = picture.transform.getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
@@ -604,17 +663,25 @@ module DeckMaker {
                 }
             });
 
-            var templateLayer = this.page.getLayer("template");
-            var newTemplate = new Template([minX, minY, maxX, minY, maxX, maxY, minX, maxY]);
+            if (minX === 1e10 || minY === 1e10)
+                return; // no shape detected
+
+            var templateLayer = layerPage.getLayer("template");
+            var newTemplate = deck.createTemplate(
+                [0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY],
+                layerPage);
             newTemplate.transform.copy(picture.transform);
+            newTemplate.transform.translate(minX, minY); // top left
 
             templateLayer.addShape(newTemplate);
 
-            this.page.rebuildLayer("template");
+            layerPage.rebuildLayer("template");
         }
     }
 
+    //---------------------------------
     export class Layer {
+        parent: HTMLCanvasElement;
         ctx: CanvasRenderingContext2D;
         canvas: HTMLCanvasElement;
         shapes: Shape[] = [];
@@ -627,17 +694,20 @@ module DeckMaker {
             return this.canvas.height;
         }
 
-        constructor(public name: string, public parent: HTMLCanvasElement, public panZoom: Transform) {
-            this.canvas = document.createElement("canvas");
-            this.canvas.width = parent.width;
-            this.canvas.height = parent.height;
-            this.ctx = this.canvas.getContext("2d");
+        constructor(public name: string) {}
 
-            parent.appendChild(this.canvas);
+        setParent(parent: HTMLCanvasElement) {
+            this.parent = parent;
+
+            this.canvas = document.createElement("canvas");
+            this.canvas.width = 1000;
+            this.canvas.height = 1000;
+            this.ctx = this.canvas.getContext("2d");
         }
 
-        addShape(shape: Shape) {
+        addShape(shape: Shape): Layer {
             this.shapes.push(shape);
+            return this;
         }
 
         removeShape(shape: Shape) {
@@ -650,26 +720,19 @@ module DeckMaker {
             var ctx = this.ctx;
             ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            ctx.save();
-            this.panZoom.draw(this.ctx);
-
             for (var i = 0; i < this.shapes.length; ++i) {
                 ctx.save();
                 this.shapes[i].transform.draw(ctx);
                 this.shapes[i].draw(ctx);
                 ctx.restore();
             }
-
-            ctx.restore();
         }
 
         getShapeFromTouch(x: number, y: number) {
-            var pos: XY = this.panZoom.getLocal(x, y);
-
             // loop backwards, if shapes overlap then pick the last one
             for (var i = this.shapes.length - 1; i >= 0; --i) {
                 var shape = this.shapes[i];
-                if (shape.isInside(pos.x, pos.y)) {
+                if (shape.isInside(x, y)) {
                     return shape;
                 }
             }
@@ -682,35 +745,69 @@ module DeckMaker {
         }
     }
 
+    //---------------------------------
     export class Page {
-        private ctx: CanvasRenderingContext2D;
-        public panZoom = new Transform();
+        parent: HTMLCanvasElement
+        ctx: CanvasRenderingContext2D;
+        panZoom = new Transform();
+
+        constructor(public name: string) {}
+
+        setParent(parent: HTMLCanvasElement): Page {
+            this.parent = parent;
+            this.ctx = parent.getContext("2d");
+
+            return this;
+        }
+
+        rebuild() {
+
+        }
+
+        refresh() {
+
+        }
+    }
+
+    //---------------------------------
+    export class LayerPage extends Page {
         private layers: Layer[] = [];
 
-        constructor(public name: string, public parent: HTMLCanvasElement) {
-            this.ctx = parent.getContext("2d");
+        setParent(parent: HTMLCanvasElement): LayerPage {
+            super.setParent(parent);
+
+            for (var i = 0; i < this.layers.length; ++i) {
+                this.layers[i].setParent(parent);
+            }
+
+            return this;
         }
 
-        getLayer(name: string) {
-            return this[name];
+        getLayer(name: string): Layer {
+            for (var i = 0; i < this.layers.length; ++i) {
+                if (this.layers[i].name === name)
+                    return this.layers[i];
+            }
+            return null;
         }
 
-        createLayer(name: string) {
-            var layer = new Layer(name, this.parent, this.panZoom);
+        addLayer(layer: Layer): LayerPage {
+            layer.setParent(this.parent);
+
             this.layers.push(layer);
-            this[name] = layer;
+            return this;
         }
 
         rebuildLayer(name) {
-            var layer = this[name];
-            if (!layer)
+            var layer = this.getLayer(name);
+            if (layer === null)
                 return;
 
             layer.rebuild();
             this.refresh();
         }
 
-        rebuildAll() {
+        rebuild() {
             for (var i = 0; i < this.layers.length; ++i)
                 this.layers[i].rebuild();
 
@@ -718,39 +815,137 @@ module DeckMaker {
         }
 
         refresh() {
-            this.ctx.clearRect(0, 0, this.parent.width, this.parent.height);
+            var ctx = this.ctx;
+            ctx.clearRect(0, 0, this.parent.width, this.parent.height);
 
+            ctx.save();
+            this.panZoom.draw(ctx);
             for (var i = 0; i < this.layers.length; ++i)
-                this.layers[i].draw(this.ctx);
+                this.layers[i].draw(ctx);
+            ctx.restore();
         }
     }
 
+    //---------------------------------
+    export class DeckPage extends Page {
+        deck: Deck;
+        deckCtx: CanvasRenderingContext2D;
+        deckCanvas: HTMLCanvasElement;
+
+        constructor(name: string) {
+            super(name);
+        }
+
+        setParent(parent: HTMLCanvasElement): DeckPage {
+            super.setParent(parent);
+
+            this.deckCanvas = document.createElement("canvas");
+            this.deckCanvas.width = 1000;
+            this.deckCanvas.height = 1000;
+            this.deckCtx = this.deckCanvas.getContext("2d");
+
+            return this;
+        }
+
+        rebuild() {
+            this.deckCtx.clearRect(0, 0, this.deckCanvas.width, this.deckCanvas.height);
+
+            var deck = getEnv("deck");
+            if (deck)
+                deck.draw(this.deckCtx)
+        }
+
+        refresh() {
+            var ctx = this.ctx;
+            ctx.clearRect(0, 0, this.parent.width, this.parent.height);
+
+            ctx.save();
+            this.panZoom.draw(ctx);
+            ctx.drawImage(this.deckCanvas, 0, 0);
+            ctx.restore();
+        }
+    }
+
+    //---------------------------------
+    export class Deck {
+        id: number;
+        color: string;
+        cardWidth: number;
+        cardHeight: number;
+        maxWidth: number;
+        width: number;
+        height: number;
+        private templates: Template[] = [];
+
+        private static uniqueID: number = 1;
+        private static colors: string[] = [
+            "red", "green", "blue", "yellow", "white", "grey", "orange", "brown"
+        ];
+        private static colorIndex: number = 0;
+
+        constructor(public name: string) {
+            this.id = Deck.uniqueID++;
+            this.color = Deck.colors[Deck.colorIndex++];
+            Deck.colorIndex = (Deck.colorIndex % Deck.colors.length);
+        }
+
+        createTemplate(vertices: number[], page): Template {
+            var template = new Template(vertices, this, page);
+            this.templates.push(template);
+            return template;
+        }
+
+        draw(ctx) {
+            var pad = 10;
+            var x = pad;
+            var y = pad;
+            var maxHeight = 0;
+            var cardWidth;
+            var cardHeight;
+            var templates = this.templates;
+
+            if (templates.length > 0) {
+                this.cardWidth = templates[0].width;
+                this.cardHeight = templates[0].height;
+            }
+
+            for (var i = 0; i < templates.length; ++i) {
+                var template = templates[i];
+
+                if (x + this.cardWidth + pad > this.maxWidth) {
+                    x = pad
+                    y += this.cardHeight + pad;
+                }
+
+                ctx.save();
+                ctx.translate(x, y);
+                template.drawCard(ctx, this.cardWidth, this.cardHeight);
+
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(0, 0, this.cardWidth, this.cardHeight);
+                ctx.restore();
+
+                x += this.cardWidth + pad;
+            }
+
+            this.width = x;
+            this.height = y + cardHeight + pad;
+        }
+    }
+
+    //---------------------------------
     export class Board {
         private touchManager: TouchManager;
-        private templates: Template[] = [];
+        private pages: Page[] = [];
+        private decks: Deck[] = [];
+        private page: Page = null;
+        private deck: Deck = null;
         private tools: Tool[] = [];
         private currentTool: Tool = null;
-        private pages: Page[] = [];
-        private currentPage: Page = null;
-        private toolSet: string = "";
-        private alphaFillTool: Tool;
-        private autoTemplateTool: Tool;
-        private panZoomTool: Tool;
-
 
         constructor(public parent: HTMLCanvasElement) {
             this.touchManager = new TouchManager(parent, this.touched.bind(this));
-
-            this.createPage("board");
-            this.createPage("deck");
-            var cutout1 = this.createPage("cutout1");
-            cutout1.createLayer("picture");
-            cutout1.createLayer("template");
-            cutout1.createLayer("tool");
-
-            this.alphaFillTool = new DeckMaker.AlphaFillTool("alphaFill", cutout1);
-            this.autoTemplateTool = new DeckMaker.AutoTemplateTool("autoTemplate", cutout1);
-            this.panZoomTool = new DeckMaker.PanZoomTool("panZoom", cutout1);
         }
 
         private touched(touch: Touch) {
@@ -769,57 +964,83 @@ module DeckMaker {
             }
         }
 
-        addTool(tool: Tool): Board {
-            this.tools.push(tool);
+        setTools(tools: Tool[]): Board {
+            this.tools = tools;
             return this;
         }
 
-        setToolSet(name: string): Board {
-            switch (name) {
-                case "autoTemplate":
-                    this.tools = [this.autoTemplateTool, this.panZoomTool];
-                    break;
-                case "alphaFill":
-                    this.tools = [this.alphaFillTool, this.panZoomTool];
-                    break;
-            }
-            this.toolSet = name;
+        addDeck(deck: Deck): Board {
+            this.decks.push(deck);
             return this;
         }
 
-        getToolSet(): string {
-            return this.toolSet;
-        }
-
-        createPage(name: string): Page {
-            var page = new Page(name, this.parent);
+        addPage(page: Page): Board {
             this.pages.push(page);
-            this[name] = page;
-            this.currentPage = page;
-            return page;
-        }
-
-        setPage(name: string): Board {
-            if (this[name]) {
-                this.currentPage = this[name];
-                this.refresh();
-            }
+            page.setParent(this.parent);
             return this;
         }
 
-        getPage(): string {
-            return this.currentPage.name;
+        setPageByName(name: string): Board {
+            var i = find(this.pages, (x) => x.name === name);
+            if (i !== -1) {
+                this.setPage(this.pages[i]);
+            }
+
+            return this;
         }
 
+        setPage(page: Page) {
+            setEnv("page", page);
+            setEnv("layerPage", (page instanceof LayerPage ? page : undefined));
+
+            this.page = page;
+            this.page.rebuild();
+            this.refresh();
+        }
+
+        getPageName(): string {
+            return this.page.name;
+        }
+
+        setDeckByName(name: string): Board {
+            var i = find(this.decks, (x) => x.name === name);
+            if (i !== -1) {
+                this.setDeck(this.decks[i]);
+            }
+
+            return this;
+        }
+
+        getDeckName(): string {
+            return this.deck.name;
+        }
+
+        setDeck(deck: Deck) {
+            setEnv("deck", deck);
+
+            this.deck = deck;
+            this.page.rebuild();
+            this.refresh();
+        }
+
+        // this looks like a tool
         addPicture(src: string) {
+            var layerPage = getEnv("layerPage");
+            if (!layerPage)
+                return;
+
+            var pictureLayer = layerPage.getLayer("picture");
+            if (!pictureLayer)
+                return;
+
             var newPicture = new Picture(src);
             newPicture.transform.translate(10, 10);
-            this.currentPage.getLayer("picture").addShape(newPicture);
-            this.currentPage.rebuildLayer("picture");
+            pictureLayer.addShape(newPicture);
+            layerPage.rebuildLayer("picture");
         }
 
         refresh() {
-            this.currentPage.refresh();
+            this.page.refresh();
         }
     }
 }

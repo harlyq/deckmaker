@@ -6,6 +6,16 @@ var __extends = this.__extends || function (d, b) {
 };
 var DeckMaker;
 (function (DeckMaker) {
+    var env = {};
+
+    function setEnv(key, value) {
+        env[key] = value;
+    }
+
+    function getEnv(key) {
+        return env[key];
+    }
+
     function find(array, predicate) {
         for (var i = 0; i < array.length; ++i) {
             if (predicate(array[i], i, array))
@@ -96,6 +106,7 @@ var DeckMaker;
         return imageData;
     }
 
+    //---------------------------------
     // values in range [0,255]
     var Color = (function () {
         function Color(r, g, b, a) {
@@ -120,6 +131,9 @@ var DeckMaker;
     })();
     DeckMaker.Color = Color;
 
+    
+
+    //---------------------------------
     var Transform = (function () {
         function Transform() {
             this.sx = 1;
@@ -178,6 +192,7 @@ var DeckMaker;
     })();
     DeckMaker.Transform = Transform;
 
+    //---------------------------------
     var Shape = (function () {
         function Shape() {
             this.transform = new Transform();
@@ -192,26 +207,7 @@ var DeckMaker;
     })();
     DeckMaker.Shape = Shape;
 
-    var Options = (function () {
-        function Options() {
-        }
-        Options.prototype.getGroupColor = function (group) {
-            switch (group) {
-                case 1:
-                    return 'red';
-                case 2:
-                    return 'blue';
-                case 3:
-                    return 'green';
-                default:
-                    return 'white';
-            }
-        };
-        return Options;
-    })();
-    DeckMaker.Options = Options;
-    var g_options = new Options();
-
+    //---------------------------------
     (function (TouchState) {
         TouchState[TouchState["Down"] = 0] = "Down";
         TouchState[TouchState["Move"] = 1] = "Move";
@@ -221,6 +217,7 @@ var DeckMaker;
     var TouchState = DeckMaker.TouchState;
     ;
 
+    //---------------------------------
     //TODO needed for export on tool - no way to make it private?!!!
     var Touch = (function () {
         function Touch(state, x, y, dx, dy, x2, y2) {
@@ -236,6 +233,7 @@ var DeckMaker;
     })();
     DeckMaker.Touch = Touch;
 
+    //---------------------------------
     var TouchManager = (function () {
         function TouchManager(parent, callback) {
             this.parent = parent;
@@ -348,21 +346,47 @@ var DeckMaker;
         return TouchManager;
     })();
 
+    //---------------------------------
     var Template = (function (_super) {
         __extends(Template, _super);
-        function Template(vertices) {
+        function Template(vertices, deck, page) {
             _super.call(this);
-            this.vertices = vertices;
+            this.deck = deck;
+            this.page = page;
             this.isBack = false;
-            this.group = 1;
             this.count = 1;
+            this.width = 0;
+            this.height = 0;
+            this.setVertices(vertices);
         }
+        Template.prototype.setVertices = function (vertices) {
+            this.vertices = vertices;
+
+            var minX = 1e10;
+            var maxX = -1e10;
+            var minY = 1e10;
+            var maxY = -1e10;
+
+            for (var i = 0; i < vertices.length; i += 2) {
+                var x = vertices[i];
+                var y = vertices[i + 1];
+
+                minX = Math.min(x, minX);
+                maxX = Math.max(x, maxX);
+                minY = Math.min(y, minY);
+                maxY = Math.max(y, maxY);
+            }
+
+            this.width = maxX - minX;
+            this.height = maxY - minY;
+        };
+
         Template.prototype.draw = function (ctx) {
             var vertices = this.vertices;
             if (vertices.length < 4)
                 return;
 
-            ctx.strokeStyle = g_options.getGroupColor(this.group);
+            ctx.strokeStyle = this.deck.color;
             ctx.lineWidth = 3;
 
             ctx.beginPath();
@@ -372,6 +396,19 @@ var DeckMaker;
             }
             ctx.closePath();
             ctx.stroke();
+        };
+
+        Template.prototype.drawCard = function (ctx, cardWidth, cardHeight) {
+            ctx.save();
+
+            var pictureLayer = this.page.getLayer("picture");
+            var tx = this.transform.tx;
+            var ty = this.transform.ty;
+            var w = this.width;
+            var h = this.height;
+            ctx.drawImage(pictureLayer.canvas, tx, ty, w, h, 0, 0, cardWidth, cardHeight);
+
+            ctx.restore();
         };
 
         Template.prototype.isInside = function (x, y) {
@@ -394,7 +431,9 @@ var DeckMaker;
         };
         return Template;
     })(Shape);
+    DeckMaker.Template = Template;
 
+    //---------------------------------
     var Picture = (function (_super) {
         __extends(Picture, _super);
         function Picture(src) {
@@ -423,10 +462,10 @@ var DeckMaker;
         return Picture;
     })(Shape);
 
+    //---------------------------------
     var Tool = (function () {
-        function Tool(name, page) {
+        function Tool(name) {
             this.name = name;
-            this.page = page;
             this.hasFocus = false;
         }
         Tool.prototype.draw = function (ctx) {
@@ -442,31 +481,35 @@ var DeckMaker;
     })();
     DeckMaker.Tool = Tool;
 
+    //---------------------------------
     var TemplateTool = (function (_super) {
         __extends(TemplateTool, _super);
-        function TemplateTool(name, page) {
-            _super.call(this, name, page);
+        function TemplateTool(name) {
+            _super.call(this, name);
         }
         return TemplateTool;
     })(Tool);
     DeckMaker.TemplateTool = TemplateTool;
 
+    //---------------------------------
     var SelectTool = (function (_super) {
         __extends(SelectTool, _super);
-        function SelectTool(name, page) {
-            _super.call(this, name, page);
+        function SelectTool(name) {
+            _super.call(this, name);
         }
         return SelectTool;
     })(Tool);
     DeckMaker.SelectTool = SelectTool;
 
+    //---------------------------------
     var PanZoomTool = (function (_super) {
         __extends(PanZoomTool, _super);
-        function PanZoomTool(name, page) {
-            _super.call(this, name, page);
+        function PanZoomTool(name) {
+            _super.call(this, name);
         }
         PanZoomTool.prototype.touched = function (touch) {
-            var panZoom = this.page.panZoom;
+            var page = getEnv("page");
+            var panZoom = page.panZoom;
             var hasChanged = false;
 
             switch (touch.state) {
@@ -504,16 +547,17 @@ var DeckMaker;
                     break;
             }
 
-            this.page.rebuildAll();
+            page.refresh();
         };
         return PanZoomTool;
     })(Tool);
     DeckMaker.PanZoomTool = PanZoomTool;
 
+    //---------------------------------
     var AlphaFillTool = (function (_super) {
         __extends(AlphaFillTool, _super);
-        function AlphaFillTool(name, page) {
-            _super.call(this, name, page);
+        function AlphaFillTool(name) {
+            _super.call(this, name);
 
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
@@ -522,12 +566,16 @@ var DeckMaker;
             if (touch.state !== 0 /* Down */)
                 return;
 
-            var pictureLayer = this.page.getLayer("picture");
-            var picture = pictureLayer.getShapeFromTouch(touch.x, touch.y);
+            var layerPage = getEnv("layerPage");
+            if (!layerPage)
+                return;
+
+            var pos = layerPage.panZoom.getLocal(touch.x, touch.y);
+            var pictureLayer = layerPage.getLayer("picture");
+            var picture = pictureLayer.getShapeFromTouch(pos.x, pos.y);
             if (picture === null)
                 return;
 
-            var pos = pictureLayer.panZoom.getLocal(touch.x, touch.y);
             pos = picture.transform.getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
@@ -558,16 +606,17 @@ var DeckMaker;
             this.ctx.putImageData(imageData, 0, 0);
             picture.setsrc(this.canvas.toDataURL());
 
-            this.page.rebuildLayer("picture");
+            layerPage.rebuildLayer("picture");
         };
         return AlphaFillTool;
     })(Tool);
     DeckMaker.AlphaFillTool = AlphaFillTool;
 
+    //---------------------------------
     var AutoTemplateTool = (function (_super) {
         __extends(AutoTemplateTool, _super);
-        function AutoTemplateTool(name, page) {
-            _super.call(this, name, page);
+        function AutoTemplateTool(name) {
+            _super.call(this, name);
 
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
@@ -579,12 +628,17 @@ var DeckMaker;
             if (touch.state !== 0 /* Down */)
                 return;
 
-            var pictureLayer = this.page.getLayer("picture");
-            var picture = pictureLayer.getShapeFromTouch(touch.x, touch.y);
+            var layerPage = getEnv("layerPage");
+            var deck = getEnv("deck");
+            if (!layerPage || !deck)
+                return;
+
+            var pos = layerPage.panZoom.getLocal(touch.x, touch.y);
+            var pictureLayer = layerPage.getLayer("picture");
+            var picture = pictureLayer.getShapeFromTouch(pos.x, pos.y);
             if (picture === null)
                 return;
 
-            var pos = pictureLayer.panZoom.getLocal(touch.x, touch.y);
             pos = picture.transform.getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
@@ -614,30 +668,27 @@ var DeckMaker;
                 }
             });
 
-            var templateLayer = this.page.getLayer("template");
-            var newTemplate = new Template([minX, minY, maxX, minY, maxX, maxY, minX, maxY]);
+            if (minX === 1e10 || minY === 1e10)
+                return;
+
+            var templateLayer = layerPage.getLayer("template");
+            var newTemplate = deck.createTemplate([0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY], layerPage);
             newTemplate.transform.copy(picture.transform);
+            newTemplate.transform.translate(minX, minY); // top left
 
             templateLayer.addShape(newTemplate);
 
-            this.page.rebuildLayer("template");
+            layerPage.rebuildLayer("template");
         };
         return AutoTemplateTool;
     })(Tool);
     DeckMaker.AutoTemplateTool = AutoTemplateTool;
 
+    //---------------------------------
     var Layer = (function () {
-        function Layer(name, parent, panZoom) {
+        function Layer(name) {
             this.name = name;
-            this.parent = parent;
-            this.panZoom = panZoom;
             this.shapes = [];
-            this.canvas = document.createElement("canvas");
-            this.canvas.width = parent.width;
-            this.canvas.height = parent.height;
-            this.ctx = this.canvas.getContext("2d");
-
-            parent.appendChild(this.canvas);
         }
         Object.defineProperty(Layer.prototype, "width", {
             get: function () {
@@ -655,8 +706,18 @@ var DeckMaker;
             configurable: true
         });
 
+        Layer.prototype.setParent = function (parent) {
+            this.parent = parent;
+
+            this.canvas = document.createElement("canvas");
+            this.canvas.width = 1000;
+            this.canvas.height = 1000;
+            this.ctx = this.canvas.getContext("2d");
+        };
+
         Layer.prototype.addShape = function (shape) {
             this.shapes.push(shape);
+            return this;
         };
 
         Layer.prototype.removeShape = function (shape) {
@@ -669,25 +730,18 @@ var DeckMaker;
             var ctx = this.ctx;
             ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            ctx.save();
-            this.panZoom.draw(this.ctx);
-
             for (var i = 0; i < this.shapes.length; ++i) {
                 ctx.save();
                 this.shapes[i].transform.draw(ctx);
                 this.shapes[i].draw(ctx);
                 ctx.restore();
             }
-
-            ctx.restore();
         };
 
         Layer.prototype.getShapeFromTouch = function (x, y) {
-            var pos = this.panZoom.getLocal(x, y);
-
             for (var i = this.shapes.length - 1; i >= 0; --i) {
                 var shape = this.shapes[i];
-                if (shape.isInside(pos.x, pos.y)) {
+                if (shape.isInside(x, y)) {
                     return shape;
                 }
             }
@@ -702,71 +756,200 @@ var DeckMaker;
     })();
     DeckMaker.Layer = Layer;
 
+    //---------------------------------
     var Page = (function () {
-        function Page(name, parent) {
+        function Page(name) {
             this.name = name;
-            this.parent = parent;
             this.panZoom = new Transform();
-            this.layers = [];
-            this.ctx = parent.getContext("2d");
         }
-        Page.prototype.getLayer = function (name) {
-            return this[name];
+        Page.prototype.setParent = function (parent) {
+            this.parent = parent;
+            this.ctx = parent.getContext("2d");
+
+            return this;
         };
 
-        Page.prototype.createLayer = function (name) {
-            var layer = new Layer(name, this.parent, this.panZoom);
+        Page.prototype.rebuild = function () {
+        };
+
+        Page.prototype.refresh = function () {
+        };
+        return Page;
+    })();
+    DeckMaker.Page = Page;
+
+    //---------------------------------
+    var LayerPage = (function (_super) {
+        __extends(LayerPage, _super);
+        function LayerPage() {
+            _super.apply(this, arguments);
+            this.layers = [];
+        }
+        LayerPage.prototype.setParent = function (parent) {
+            _super.prototype.setParent.call(this, parent);
+
+            for (var i = 0; i < this.layers.length; ++i) {
+                this.layers[i].setParent(parent);
+            }
+
+            return this;
+        };
+
+        LayerPage.prototype.getLayer = function (name) {
+            for (var i = 0; i < this.layers.length; ++i) {
+                if (this.layers[i].name === name)
+                    return this.layers[i];
+            }
+            return null;
+        };
+
+        LayerPage.prototype.addLayer = function (layer) {
+            layer.setParent(this.parent);
+
             this.layers.push(layer);
-            this[name] = layer;
+            return this;
         };
 
-        Page.prototype.rebuildLayer = function (name) {
-            var layer = this[name];
-            if (!layer)
+        LayerPage.prototype.rebuildLayer = function (name) {
+            var layer = this.getLayer(name);
+            if (layer === null)
                 return;
 
             layer.rebuild();
             this.refresh();
         };
 
-        Page.prototype.rebuildAll = function () {
+        LayerPage.prototype.rebuild = function () {
             for (var i = 0; i < this.layers.length; ++i)
                 this.layers[i].rebuild();
 
             this.refresh();
         };
 
-        Page.prototype.refresh = function () {
-            this.ctx.clearRect(0, 0, this.parent.width, this.parent.height);
+        LayerPage.prototype.refresh = function () {
+            var ctx = this.ctx;
+            ctx.clearRect(0, 0, this.parent.width, this.parent.height);
 
+            ctx.save();
+            this.panZoom.draw(ctx);
             for (var i = 0; i < this.layers.length; ++i)
-                this.layers[i].draw(this.ctx);
+                this.layers[i].draw(ctx);
+            ctx.restore();
         };
-        return Page;
-    })();
-    DeckMaker.Page = Page;
+        return LayerPage;
+    })(Page);
+    DeckMaker.LayerPage = LayerPage;
 
+    //---------------------------------
+    var DeckPage = (function (_super) {
+        __extends(DeckPage, _super);
+        function DeckPage(name) {
+            _super.call(this, name);
+        }
+        DeckPage.prototype.setParent = function (parent) {
+            _super.prototype.setParent.call(this, parent);
+
+            this.deckCanvas = document.createElement("canvas");
+            this.deckCanvas.width = 1000;
+            this.deckCanvas.height = 1000;
+            this.deckCtx = this.deckCanvas.getContext("2d");
+
+            return this;
+        };
+
+        DeckPage.prototype.rebuild = function () {
+            this.deckCtx.clearRect(0, 0, this.deckCanvas.width, this.deckCanvas.height);
+
+            var deck = getEnv("deck");
+            if (deck)
+                deck.draw(this.deckCtx);
+        };
+
+        DeckPage.prototype.refresh = function () {
+            var ctx = this.ctx;
+            ctx.clearRect(0, 0, this.parent.width, this.parent.height);
+
+            ctx.save();
+            this.panZoom.draw(ctx);
+            ctx.drawImage(this.deckCanvas, 0, 0);
+            ctx.restore();
+        };
+        return DeckPage;
+    })(Page);
+    DeckMaker.DeckPage = DeckPage;
+
+    //---------------------------------
+    var Deck = (function () {
+        function Deck(name) {
+            this.name = name;
+            this.templates = [];
+            this.id = Deck.uniqueID++;
+            this.color = Deck.colors[Deck.colorIndex++];
+            Deck.colorIndex = (Deck.colorIndex % Deck.colors.length);
+        }
+        Deck.prototype.createTemplate = function (vertices, page) {
+            var template = new Template(vertices, this, page);
+            this.templates.push(template);
+            return template;
+        };
+
+        Deck.prototype.draw = function (ctx) {
+            var pad = 10;
+            var x = pad;
+            var y = pad;
+            var maxHeight = 0;
+            var cardWidth;
+            var cardHeight;
+            var templates = this.templates;
+
+            if (templates.length > 0) {
+                this.cardWidth = templates[0].width;
+                this.cardHeight = templates[0].height;
+            }
+
+            for (var i = 0; i < templates.length; ++i) {
+                var template = templates[i];
+
+                if (x + this.cardWidth + pad > this.maxWidth) {
+                    x = pad;
+                    y += this.cardHeight + pad;
+                }
+
+                ctx.save();
+                ctx.translate(x, y);
+                template.drawCard(ctx, this.cardWidth, this.cardHeight);
+
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(0, 0, this.cardWidth, this.cardHeight);
+                ctx.restore();
+
+                x += this.cardWidth + pad;
+            }
+
+            this.width = x;
+            this.height = y + cardHeight + pad;
+        };
+        Deck.uniqueID = 1;
+        Deck.colors = [
+            "red", "green", "blue", "yellow", "white", "grey", "orange", "brown"
+        ];
+        Deck.colorIndex = 0;
+        return Deck;
+    })();
+    DeckMaker.Deck = Deck;
+
+    //---------------------------------
     var Board = (function () {
         function Board(parent) {
             this.parent = parent;
-            this.templates = [];
+            this.pages = [];
+            this.decks = [];
+            this.page = null;
+            this.deck = null;
             this.tools = [];
             this.currentTool = null;
-            this.pages = [];
-            this.currentPage = null;
-            this.toolSet = "";
             this.touchManager = new TouchManager(parent, this.touched.bind(this));
-
-            this.createPage("board");
-            this.createPage("deck");
-            var cutout1 = this.createPage("cutout1");
-            cutout1.createLayer("picture");
-            cutout1.createLayer("template");
-            cutout1.createLayer("tool");
-
-            this.alphaFillTool = new DeckMaker.AlphaFillTool("alphaFill", cutout1);
-            this.autoTemplateTool = new DeckMaker.AutoTemplateTool("autoTemplate", cutout1);
-            this.panZoomTool = new DeckMaker.PanZoomTool("panZoom", cutout1);
         }
         Board.prototype.touched = function (touch) {
             if (this.currentTool) {
@@ -784,57 +967,87 @@ var DeckMaker;
             }
         };
 
-        Board.prototype.addTool = function (tool) {
-            this.tools.push(tool);
+        Board.prototype.setTools = function (tools) {
+            this.tools = tools;
             return this;
         };
 
-        Board.prototype.setToolSet = function (name) {
-            switch (name) {
-                case "autoTemplate":
-                    this.tools = [this.autoTemplateTool, this.panZoomTool];
-                    break;
-                case "alphaFill":
-                    this.tools = [this.alphaFillTool, this.panZoomTool];
-                    break;
-            }
-            this.toolSet = name;
+        Board.prototype.addDeck = function (deck) {
+            this.decks.push(deck);
             return this;
         };
 
-        Board.prototype.getToolSet = function () {
-            return this.toolSet;
-        };
-
-        Board.prototype.createPage = function (name) {
-            var page = new Page(name, this.parent);
+        Board.prototype.addPage = function (page) {
             this.pages.push(page);
-            this[name] = page;
-            this.currentPage = page;
-            return page;
-        };
-
-        Board.prototype.setPage = function (name) {
-            if (this[name]) {
-                this.currentPage = this[name];
-                this.refresh();
-            }
+            page.setParent(this.parent);
             return this;
         };
 
-        Board.prototype.getPage = function () {
-            return this.currentPage.name;
+        Board.prototype.setPageByName = function (name) {
+            var i = find(this.pages, function (x) {
+                return x.name === name;
+            });
+            if (i !== -1) {
+                this.setPage(this.pages[i]);
+            }
+
+            return this;
         };
 
+        Board.prototype.setPage = function (page) {
+            setEnv("page", page);
+            setEnv("layerPage", (page instanceof LayerPage ? page : undefined));
+
+            this.page = page;
+            this.page.rebuild();
+            this.refresh();
+        };
+
+        Board.prototype.getPageName = function () {
+            return this.page.name;
+        };
+
+        Board.prototype.setDeckByName = function (name) {
+            var i = find(this.decks, function (x) {
+                return x.name === name;
+            });
+            if (i !== -1) {
+                this.setDeck(this.decks[i]);
+            }
+
+            return this;
+        };
+
+        Board.prototype.getDeckName = function () {
+            return this.deck.name;
+        };
+
+        Board.prototype.setDeck = function (deck) {
+            setEnv("deck", deck);
+
+            this.deck = deck;
+            this.page.rebuild();
+            this.refresh();
+        };
+
+        // this looks like a tool
         Board.prototype.addPicture = function (src) {
+            var layerPage = getEnv("layerPage");
+            if (!layerPage)
+                return;
+
+            var pictureLayer = layerPage.getLayer("picture");
+            if (!pictureLayer)
+                return;
+
             var newPicture = new Picture(src);
             newPicture.transform.translate(10, 10);
-            this.currentPage.getLayer("picture").addShape(newPicture);
-            this.currentPage.rebuildLayer("picture");
+            pictureLayer.addShape(newPicture);
+            layerPage.rebuildLayer("picture");
         };
 
         Board.prototype.refresh = function () {
-            this.currentPage.refresh();
+            this.page.refresh();
         };
         return Board;
     })();

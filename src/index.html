@@ -2,6 +2,12 @@
 <html>
 
 <head>
+    <script src="system.js" type="text/javascript"></script>
+    <script src="touch.js" type="text/javascript"></script>
+    <script src="shape.js" type="text/javascript"></script>
+    <script src="page.js" type="text/javascript"></script>
+    <script src="deck.js" type="text/javascript"></script>
+    <script src="tool.js" type="text/javascript"></script>
     <script src="deckmaker.js" type="text/javascript"></script>
 
     <style>
@@ -31,8 +37,8 @@
     var panZoomTool = null;
     var autoTemplateTool = null;
     var alphaFillTool = null;
-    var deckPanZoomTool = null;
-    var boardPanZoomTool = null;
+    var locationTool = null;
+    var pictureTool = null;
 
     function setTool(newTool) {
         if (tool) {
@@ -44,20 +50,16 @@
         tool = newTool;
         switch (newTool) {
             case "autoTemplate":
-                board.setTools([autoTemplateTool, panZoomTool]);
+                board.setTools([pictureTool, autoTemplateTool, panZoomTool]);
                 break;
             case "alphaFill":
-                board.setTools([alphaFillTool, panZoomTool]);
+                board.setTools([pictureTool, alphaFillTool, panZoomTool]);
                 break;
             case "panZoom":
-                board.setTools([panZoomTool]);
+                board.setTools([pictureTool, panZoomTool]);
                 break;
-            case "deckPanZoom":
-                board.setTools([deckPanZoomTool]);
-                break;
-            case "boardPanZoom":
-                board.setTools([boardPanZoomTool]);
-                break;
+            case "location":
+                board.setTools([pictureTool, locationTool]);
         }
 
         if (newTool) {
@@ -123,7 +125,7 @@
 
         var reader = new FileReader();
         reader.onloadend = function(e) {
-            board.addPicture(reader.result);
+            pictureTool.addPicture(reader.result);
         }
         reader.readAsDataURL(file);
     }
@@ -135,10 +137,11 @@
         document.getElementById("deckPage").addEventListener("click", clickPage);
         document.getElementById("cutout1").addEventListener("click", clickPage);
 
-        document.getElementById("select").addEventListener("click", clickTool);
+        document.getElementById("panZoom").addEventListener("click", clickTool);
         document.getElementById("autoTemplate").addEventListener("click", clickTool);
         document.getElementById("alphaFill").addEventListener("click", clickTool);
         document.getElementById("picture").addEventListener("change", addPicture);
+        document.getElementById("location").addEventListener("click", clickTool);
 
         document.getElementById("deck1").addEventListener("click", clickDeck);
         document.getElementById("deck2").addEventListener("click", clickDeck);
@@ -149,6 +152,8 @@
         board.addPage(boardPage);
 
         boardPage.addLayer(new DeckMaker.Layer("picture"));
+        boardPage.addLayer(new DeckMaker.Layer("location"));
+        boardPage.addLayer(new DeckMaker.Layer("tool"));
 
         var deck1 = new DeckMaker.Deck("deck1");
         var deck2 = new DeckMaker.Deck("deck2");
@@ -166,11 +171,11 @@
         cutout1.addLayer(new DeckMaker.Layer("template"));
         cutout1.addLayer(new DeckMaker.Layer("tool"));
 
-        alphaFillTool = new DeckMaker.AlphaFillTool("alphaFill", cutout1);
-        autoTemplateTool = new DeckMaker.AutoTemplateTool("autoTemplate", cutout1, deck1);
-        panZoomTool = new DeckMaker.PanZoomTool("panZoom", cutout1);
-        boardPanZoomTool = new DeckMaker.PanZoomTool("panZoom", board);
-        deckPanZoomTool = new DeckMaker.PanZoomTool("panZoom", deckPage);
+        alphaFillTool = new DeckMaker.AlphaFillTool();
+        autoTemplateTool = new DeckMaker.AutoTemplateTool();
+        panZoomTool = new DeckMaker.PanZoomTool();
+        locationTool = new DeckMaker.LocationTool();
+        pictureTool = new DeckMaker.PictureTool();
 
         setPage("cutout1");
         setTool("alphaFill");
@@ -185,9 +190,11 @@
     <div id="cutout1" class="button">CUTOUT 1</div>
     <div></div>
     <input id="picture" type="file"></input>
+    <div></div>
     <div id="autoTemplate" class="button">AUTO TEMPLATE</div>
     <div id="alphaFill" class="button">ALPHA FILL</div>
-    <div id="select" class="button">SELECT</div>
+    <div id="panZoom" class="button">PAN/ZOOM</div>
+    <div id="location" class="button">LOCATION</div>
     <div></div>
     <div id="deck1" class="button">DECK1</div>
     <div id="deck2" class="button">DECK2</div>

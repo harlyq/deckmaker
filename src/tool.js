@@ -1,32 +1,40 @@
 // Copyright 2014 Reece Elliott
-
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
 /// <reference path="_dependencies.ts" />
-module DeckMaker {
-
+var DeckMaker;
+(function (DeckMaker) {
     //---------------------------------
-    export class Tool {
-        hasFocus: boolean = false; // what if two tools have focus???
+    var Tool = (function () {
+        function Tool() {
+            this.hasFocus = false;
+        }
+        Tool.prototype.touched = function (touch) {
+        };
 
-        touched(touch: Touch) {}
-
-        isInside(x: number, y: number): boolean {
+        Tool.prototype.isInside = function (x, y) {
             return false;
-        }
-    }
+        };
+        return Tool;
+    })();
+    DeckMaker.Tool = Tool;
 
     //---------------------------------
-    export class LocationTool extends Tool {
-        private x1: number = 0;
-        private x2: number = 0;
-        private y1: number = 0;
-        private y2: number = 0;
-
-        constructor() {
-            super();
+    var LocationTool = (function (_super) {
+        __extends(LocationTool, _super);
+        function LocationTool() {
+            _super.call(this);
+            this.x1 = 0;
+            this.x2 = 0;
+            this.y1 = 0;
+            this.y2 = 0;
         }
-
-        touched(touch: Touch) {
-            var page: Page = getEnv("page");
+        LocationTool.prototype.touched = function (touch) {
+            var page = DeckMaker.getEnv("page");
             if (!page)
                 return;
 
@@ -40,14 +48,14 @@ module DeckMaker {
             var isUsed = false;
 
             switch (touch.state) {
-                case TouchState.Down:
+                case 0 /* Down */:
                     this.hasFocus = isUsed = true;
                     this.x1 = this.x2 = pos.x;
                     this.y1 = this.y2 = pos.y;
                     toolLayer.addThing(this);
                     break;
 
-                case TouchState.Move:
+                case 1 /* Move */:
                     if (this.hasFocus) {
                         this.x2 = pos.x;
                         this.y2 = pos.y;
@@ -55,11 +63,10 @@ module DeckMaker {
                     }
                     break;
 
-                case TouchState.Up:
+                case 2 /* Up */:
                     if (this.hasFocus) {
                         if (this.x2 !== this.x1 && this.y2 !== this.y1) {
-                            page.addCommand(new LocationCommand(
-                                this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
+                            page.addCommand(new LocationCommand(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
                         }
                         this.hasFocus = false;
                         toolLayer.removeThing(this);
@@ -72,9 +79,9 @@ module DeckMaker {
                 toolLayer.rebuild();
                 page.refresh();
             }
-        }
+        };
 
-        draw(ctx) {
+        LocationTool.prototype.draw = function (ctx) {
             if (!this.hasFocus)
                 return;
 
@@ -84,62 +91,56 @@ module DeckMaker {
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1);
             ctx.restore();
-        }
-    }
+        };
+        return LocationTool;
+    })(Tool);
+    DeckMaker.LocationTool = LocationTool;
 
     //---------------------------------
-    class LocationCommand implements Command {
-        location: Location;
-        locationLayer: Layer;
-        page: Page;
-
-        constructor(x: number, y: number, w: number, h: number) {
-            this.location = new Location(w, h);
+    var LocationCommand = (function () {
+        function LocationCommand(x, y, w, h) {
+            this.location = new DeckMaker.Location(w, h);
             this.location.transform.translate(x, y);
-            this.page = getEnv("page");
+            this.page = DeckMaker.getEnv("page");
             this.locationLayer = this.page.getLayer("location");
         }
-
-        redo() {
+        LocationCommand.prototype.redo = function () {
             this.locationLayer.addThing(this.location);
             this.locationLayer.rebuild();
             this.page.refresh();
-        }
+        };
 
-        undo() {
+        LocationCommand.prototype.undo = function () {
             this.locationLayer.removeThing(this.location);
             this.locationLayer.rebuild();
             this.page.refresh();
-        }
-    }
+        };
+        return LocationCommand;
+    })();
 
     //---------------------------------
-    export class PanZoomTool extends Tool {
-        oldDistance: number;
-        oldCX: number;
-        oldCY: number;
-
-        constructor() {
-            super();
+    var PanZoomTool = (function (_super) {
+        __extends(PanZoomTool, _super);
+        function PanZoomTool() {
+            _super.call(this);
         }
-
-        touched(touch: Touch) {
-            var page: Page = getEnv("page");
+        PanZoomTool.prototype.touched = function (touch) {
+            var page = DeckMaker.getEnv("page");
             var panZoom = page.panZoom;
             var isUsed = false;
 
             switch (touch.state) {
-                case TouchState.Down:
+                case 0 /* Down */:
                     this.hasFocus = true;
                     isUsed = true;
                     if (typeof touch.x2 !== "undefined") {
-                        this.oldDistance = distance(touch.x, touch.y, touch.x2, touch.y2);
+                        this.oldDistance = DeckMaker.distance(touch.x, touch.y, touch.x2, touch.y2);
                         this.oldCX = (touch.x + touch.x2) >> 1;
                         this.oldCY = (touch.y + touch.y2) >> 1;
                     }
                     break;
 
-                case TouchState.Move:
+                case 1 /* Move */:
                     if (this.hasFocus) {
                         panZoom.tx += touch.dx;
                         panZoom.ty += touch.dy;
@@ -147,14 +148,14 @@ module DeckMaker {
                     }
                     break;
 
-                case TouchState.Up:
+                case 2 /* Up */:
                     if (this.hasFocus) {
                         this.hasFocus = false;
                         isUsed = true;
                     }
                     break;
 
-                case TouchState.Wheel:
+                case 3 /* Wheel */:
                     //this.hasFocus = true; wheel is one-shot
                     var scale = (touch.dy > 0 ? 1 / 1.15 : 1.15);
                     panZoom.tx = touch.x - (touch.x - panZoom.tx) * scale;
@@ -167,32 +168,31 @@ module DeckMaker {
 
             if (isUsed)
                 page.refresh();
-        }
-    }
+        };
+        return PanZoomTool;
+    })(Tool);
+    DeckMaker.PanZoomTool = PanZoomTool;
 
     //---------------------------------
-    export class AlphaFillTool extends Tool {
-        private canvas: HTMLCanvasElement;
-        private ctx: CanvasRenderingContext2D;
-
-        constructor() {
-            super();
+    var AlphaFillTool = (function (_super) {
+        __extends(AlphaFillTool, _super);
+        function AlphaFillTool() {
+            _super.call(this);
 
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
         }
-
-        touched(touch: Touch) {
-            if (touch.state !== TouchState.Down)
+        AlphaFillTool.prototype.touched = function (touch) {
+            if (touch.state !== 0 /* Down */)
                 return;
 
-            var page: Page = getEnv("page");
+            var page = DeckMaker.getEnv("page");
             if (!page)
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
             var pictureLayer = page.getLayer("picture");
-            var picture: Picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
+            var picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
             if (picture === null)
                 return;
 
@@ -203,26 +203,23 @@ module DeckMaker {
 
             picture.draw(this.ctx);
 
-            var firstColor: Color;
-            var alphaColor = new Color(0, 0, 0, 0);
+            var firstColor;
+            var alphaColor = new DeckMaker.Color(0, 0, 0, 0);
             var tolerance = 50;
 
-            var imageData = floodFill({
+            var imageData = DeckMaker.floodFill({
                 ctx: this.ctx,
                 x: pos.x,
                 y: pos.y,
-                match: function(col: Color): boolean {
+                match: function (col) {
                     if (typeof firstColor === "undefined") {
                         firstColor = col.clone();
                         return true;
                     }
-                    return col.a > 0 && // so col does not match alphaColor
-                        Math.abs(col.r - firstColor.r) < tolerance &&
-                        Math.abs(col.g - firstColor.g) < tolerance &&
-                        Math.abs(col.b - firstColor.b) < tolerance;
+                    return col.a > 0 && Math.abs(col.r - firstColor.r) < tolerance && Math.abs(col.g - firstColor.g) < tolerance && Math.abs(col.b - firstColor.b) < tolerance;
                 },
-                change: function(imageData: ImageData, x: number, y: number, pixel: number) {
-                    setImageCol(imageData, pixel, alphaColor);
+                change: function (imageData, x, y, pixel) {
+                    DeckMaker.setImageCol(imageData, pixel, alphaColor);
                 }
             });
 
@@ -231,27 +228,26 @@ module DeckMaker {
 
             pictureLayer.rebuild();
             page.refresh();
-        }
-    }
+        };
+        return AlphaFillTool;
+    })(Tool);
+    DeckMaker.AlphaFillTool = AlphaFillTool;
 
     //---------------------------------
-    export class AutoTemplateTool extends Tool {
-        private canvas: HTMLCanvasElement;
-        private ctx: CanvasRenderingContext2D;
-
-        constructor() {
-            super();
+    var AutoTemplateTool = (function (_super) {
+        __extends(AutoTemplateTool, _super);
+        function AutoTemplateTool() {
+            _super.call(this);
 
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
         }
-
-        touched(touch: Touch) {
-            if (touch.state !== TouchState.Down)
+        AutoTemplateTool.prototype.touched = function (touch) {
+            if (touch.state !== 0 /* Down */)
                 return;
 
-            var page: Page = getEnv("page");
-            var deck: Deck = getEnv("deck");
+            var page = DeckMaker.getEnv("page");
+            var deck = DeckMaker.getEnv("deck");
             if (!page || !deck)
                 return;
 
@@ -261,7 +257,7 @@ module DeckMaker {
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
-            var picture: Picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
+            var picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
             if (picture === null)
                 return;
 
@@ -272,75 +268,75 @@ module DeckMaker {
 
             picture.draw(this.ctx);
 
-            var used = new Color(0, 0, 0, 0);
+            var used = new DeckMaker.Color(0, 0, 0, 0);
             var minX = 1e10;
             var maxX = -1e10;
             var minY = 1e10;
             var maxY = -1e10;
 
-            var imageData = floodFill({
+            var imageData = DeckMaker.floodFill({
                 ctx: this.ctx,
                 x: pos.x,
                 y: pos.y,
-                match: function(col: Color): boolean {
+                match: function (col) {
                     return col.a > 1;
                 },
-                change: function(imageData: ImageData, x: number, y: number, pixel: number) {
+                change: function (imageData, x, y, pixel) {
                     minX = Math.min(x, minX);
                     maxX = Math.max(x, maxX);
                     minY = Math.min(y, minY);
                     maxY = Math.max(y, maxY);
-                    setImageCol(imageData, pixel, used);
+                    DeckMaker.setImageCol(imageData, pixel, used);
                 }
             });
 
             if (minX === 1e10 || minY === 1e10)
-                return; // no shape detected
+                return;
 
-            var newTemplate = new Template(
-                [0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY],
-                page);
+            var newTemplate = new DeckMaker.Template([0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY], page);
             newTemplate.transform.copy(picture.transform);
             newTemplate.transform.translate(minX, minY); // top left
 
             page.addCommand(new AutoTemplateCommand([newTemplate]));
-        }
-    }
+        };
+        return AutoTemplateTool;
+    })(Tool);
+    DeckMaker.AutoTemplateTool = AutoTemplateTool;
 
     //---------------------------------
-    class AutoTemplateCommand implements Command {
-        templates: Template[] = [];
-        page: Page;
-        deck: Deck;
-        templateLayer: Layer;
-
-        constructor(templates: Template[]) {
+    var AutoTemplateCommand = (function () {
+        function AutoTemplateCommand(templates) {
+            this.templates = [];
             this.templates = templates.slice(); // copy
 
-            this.deck = getEnv("deck");
-            this.page = getEnv("page");
+            this.deck = DeckMaker.getEnv("deck");
+            this.page = DeckMaker.getEnv("page");
             this.templateLayer = this.page.getLayer("picture");
         }
-
-        redo() {
+        AutoTemplateCommand.prototype.redo = function () {
             this.deck.addTemplates(this.templates);
             this.templateLayer.addThings(this.templates);
             this.templateLayer.rebuild();
             this.page.refresh();
-        }
+        };
 
-        undo() {
+        AutoTemplateCommand.prototype.undo = function () {
             this.deck.removeTemplates(this.templates);
             this.templateLayer.removeThings(this.templates);
             this.templateLayer.rebuild();
             this.page.refresh();
-        }
-    }
+        };
+        return AutoTemplateCommand;
+    })();
 
     //---------------------------------
-    export class PictureTool extends Tool {
-        addPicture(src: string) {
-            var page: Page = getEnv("page");
+    var PictureTool = (function (_super) {
+        __extends(PictureTool, _super);
+        function PictureTool() {
+            _super.apply(this, arguments);
+        }
+        PictureTool.prototype.addPicture = function (src) {
+            var page = DeckMaker.getEnv("page");
             if (!page)
                 return;
 
@@ -348,32 +344,30 @@ module DeckMaker {
                 return;
 
             page.addCommand(new PictureCommand(src));
-        }
-    }
+        };
+        return PictureTool;
+    })(Tool);
+    DeckMaker.PictureTool = PictureTool;
 
     //---------------------------------
-    class PictureCommand implements Command {
-        picture: Picture;
-        page: Page;
-        pictureLayer: Layer;
-
-        constructor(src: string) {
-            this.picture = new Picture(src);
+    var PictureCommand = (function () {
+        function PictureCommand(src) {
+            this.picture = new DeckMaker.Picture(src);
             this.picture.transform.translate(10, 10);
-            this.page = getEnv("page");
+            this.page = DeckMaker.getEnv("page");
             this.pictureLayer = this.page.getLayer("picture");
         }
-
-        redo() {
+        PictureCommand.prototype.redo = function () {
             this.pictureLayer.addThing(this.picture);
             this.pictureLayer.rebuild();
             this.page.refresh();
-        }
+        };
 
-        undo() {
+        PictureCommand.prototype.undo = function () {
             this.pictureLayer.removeThing(this.picture);
             this.pictureLayer.rebuild();
             this.page.refresh();
-        }
-    }
-}
+        };
+        return PictureCommand;
+    })();
+})(DeckMaker || (DeckMaker = {}));

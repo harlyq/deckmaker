@@ -1,21 +1,25 @@
 // Copyright 2014 Reece Elliott
-
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
 /// <reference path="_dependencies.ts" />
-module DeckMaker {
-
+var DeckMaker;
+(function (DeckMaker) {
     //---------------------------------
-    export class Template extends Shape {
-        private vertices: number[];
-        private isBack: boolean = false;
-        count: number = 1;
-        deck: Deck = null;
-
-        constructor(vertices: number[], private page: Page) {
-            super();
+    var Template = (function (_super) {
+        __extends(Template, _super);
+        function Template(vertices, page) {
+            _super.call(this);
+            this.page = page;
+            this.isBack = false;
+            this.count = 1;
+            this.deck = null;
             this.setVertices(vertices);
         }
-
-        setVertices(vertices: number[]) {
+        Template.prototype.setVertices = function (vertices) {
             this.vertices = vertices;
 
             var minX = 1e10;
@@ -35,9 +39,9 @@ module DeckMaker {
 
             this.width = maxX - minX;
             this.height = maxY - minY;
-        }
+        };
 
-        draw(ctx: CanvasRenderingContext2D) {
+        Template.prototype.draw = function (ctx) {
             var vertices = this.vertices;
             if (vertices.length < 4)
                 return;
@@ -52,9 +56,9 @@ module DeckMaker {
             }
             ctx.closePath();
             ctx.stroke();
-        }
+        };
 
-        drawCard(ctx: CanvasRenderingContext2D, cardWidth: number, cardHeight: number) {
+        Template.prototype.drawCard = function (ctx, cardWidth, cardHeight) {
             ctx.save();
 
             var pictureLayer = this.page.getLayer("picture");
@@ -65,84 +69,67 @@ module DeckMaker {
             ctx.drawImage(pictureLayer.canvas, tx, ty, w, h, 0, 0, cardWidth, cardHeight);
 
             ctx.restore();
-        }
+        };
 
-        isInside(x: number, y: number): boolean {
+        Template.prototype.isInside = function (x, y) {
             var pos = this.transform.getLocal(x, y);
 
             // ray-casting algorithm based on
             // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
-
             var v = this.vertices;
             var inside = false;
             for (var i = 0, j = v.length - 2; i < v.length; j = i, i += 2) {
-                var xi = v[i],
-                    yi = v[i + 1],
-                    xj = v[j],
-                    yj = v[j + 1];
+                var xi = v[i], yi = v[i + 1], xj = v[j], yj = v[j + 1];
 
-                var intersect = ((yi > pos.y) !== (yj > pos.y)) &&
-                    (pos.x < xi + (xj - xi) * (pos.y - yi) / (yj - yi));
+                var intersect = ((yi > pos.y) !== (yj > pos.y)) && (pos.x < xi + (xj - xi) * (pos.y - yi) / (yj - yi));
 
                 if (intersect)
                     inside = !inside;
             }
 
             return inside;
-        }
-    }
+        };
+        return Template;
+    })(DeckMaker.Shape);
+    DeckMaker.Template = Template;
 
     //---------------------------------
-    export class Deck {
-        id: number;
-        color: string;
-        cardWidth: number;
-        cardHeight: number;
-        maxWidth: number;
-        width: number;
-        height: number;
-        private templates: Template[] = [];
-
-        private static uniqueID: number = 1;
-        private static colors: string[] = [
-            "red", "green", "blue", "yellow", "white", "grey", "orange", "brown"
-        ];
-        private static colorIndex: number = 0;
-
-        constructor(public name: string) {
+    var Deck = (function () {
+        function Deck(name) {
+            this.name = name;
+            this.templates = [];
             this.id = Deck.uniqueID++;
             this.color = Deck.colors[Deck.colorIndex++];
             Deck.colorIndex = (Deck.colorIndex % Deck.colors.length);
         }
-
-        addTemplate(template: Template): Deck {
+        Deck.prototype.addTemplate = function (template) {
             this.templates.push(template);
             template.deck = this;
             return this;
-        }
+        };
 
-        removeTemplate(template: Template): Deck {
+        Deck.prototype.removeTemplate = function (template) {
             var i = this.templates.indexOf(template);
             if (i !== -1) {
                 template.deck = null;
                 this.templates.splice(i, 1);
             }
             return this;
-        }
+        };
 
-        addTemplates(templates: Template[]): Deck {
+        Deck.prototype.addTemplates = function (templates) {
             for (var i = 0; i < templates.length; ++i)
                 this.addTemplate(templates[i]);
             return this;
-        }
+        };
 
-        removeTemplates(templates: Template[]): Deck {
+        Deck.prototype.removeTemplates = function (templates) {
             for (var i = 0; i < templates.length; ++i)
                 this.removeTemplate(templates[i]);
             return this;
-        }
+        };
 
-        draw(ctx) {
+        Deck.prototype.draw = function (ctx) {
             var pad = 10;
             var x = pad;
             var y = pad;
@@ -160,7 +147,7 @@ module DeckMaker {
                 var template = templates[i];
 
                 if (x + this.cardWidth + pad > this.maxWidth) {
-                    x = pad
+                    x = pad;
                     y += this.cardHeight + pad;
                 }
 
@@ -178,21 +165,24 @@ module DeckMaker {
 
             this.width = x;
             this.height = y + cardHeight + pad;
-        }
-    }
+        };
+        Deck.uniqueID = 1;
+        Deck.colors = [
+            "red", "green", "blue", "yellow", "white", "grey", "orange", "brown"
+        ];
+        Deck.colorIndex = 0;
+        return Deck;
+    })();
+    DeckMaker.Deck = Deck;
 
     //---------------------------------
-    export class DeckPage extends Page {
-        deck: Deck;
-        deckCtx: CanvasRenderingContext2D;
-        deckCanvas: HTMLCanvasElement;
-
-        constructor(name: string) {
-            super(name);
+    var DeckPage = (function (_super) {
+        __extends(DeckPage, _super);
+        function DeckPage(name) {
+            _super.call(this, name);
         }
-
-        setParent(parent: HTMLCanvasElement): DeckPage {
-            super.setParent(parent);
+        DeckPage.prototype.setParent = function (parent) {
+            _super.prototype.setParent.call(this, parent);
 
             this.deckCanvas = document.createElement("canvas");
             this.deckCanvas.width = 1000;
@@ -200,17 +190,17 @@ module DeckMaker {
             this.deckCtx = this.deckCanvas.getContext("2d");
 
             return this;
-        }
+        };
 
-        rebuild() {
+        DeckPage.prototype.rebuild = function () {
             this.deckCtx.clearRect(0, 0, this.deckCanvas.width, this.deckCanvas.height);
 
-            var deck: Deck = getEnv("deck");
+            var deck = DeckMaker.getEnv("deck");
             if (deck)
-                deck.draw(this.deckCtx)
-        }
+                deck.draw(this.deckCtx);
+        };
 
-        refresh() {
+        DeckPage.prototype.refresh = function () {
             var ctx = this.ctx;
             ctx.clearRect(0, 0, this.parent.width, this.parent.height);
 
@@ -218,8 +208,8 @@ module DeckMaker {
             this.panZoom.draw(ctx);
             ctx.drawImage(this.deckCanvas, 0, 0);
             ctx.restore();
-        }
-    }
-
-
-}
+        };
+        return DeckPage;
+    })(DeckMaker.Page);
+    DeckMaker.DeckPage = DeckPage;
+})(DeckMaker || (DeckMaker = {}));

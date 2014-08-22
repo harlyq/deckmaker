@@ -8,6 +8,8 @@ module DeckMaker {
         parent: HTMLCanvasElement
         ctx: CanvasRenderingContext2D;
         panZoom = new Transform();
+        selectList = new SelectList();
+        commandList = new CommandList();
 
         constructor(public name: string) {}
 
@@ -24,6 +26,16 @@ module DeckMaker {
 
         rebuild() {}
         refresh() {}
+
+        undo() {
+            this.commandList.undo();
+        }
+        redo() {
+            this.commandList.redo();
+        }
+        addCommand(command) {
+            this.commandList.addCommand(command);
+        }
     }
 
     //---------------------------------
@@ -105,10 +117,26 @@ module DeckMaker {
             return this;
         }
 
-        removeThing(thing: any) {
+        removeThing(thing: any): Layer {
             var i = this.things.indexOf(thing);
             if (i !== -1)
                 this.things.splice(i, 1);
+
+            return this;
+        }
+
+        addThings(things: any[]): Layer {
+            for (var i = 0; i < things.length; ++i)
+                this.addThing(things[i]);
+
+            return this;
+        }
+
+        removeThings(things: any[]): Layer {
+            for (var i = 0; i < things.length; ++i)
+                this.removeThing(things[i]);
+
+            return this;
         }
 
         rebuild() {

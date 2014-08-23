@@ -7,16 +7,19 @@ module DeckMaker {
     } = {};
 
     export
+
     function setEnv(key: string, value: any) {
         env[key] = value;
     }
 
     export
+
     function getEnv(key: string): any {
         return env[key];
     }
 
     export
+
     function find(array, predicate: (element: any, index: number, array: any[]) => boolean): number {
         for (var i = 0; i < array.length; ++i) {
             if (predicate(array[i], i, array))
@@ -26,6 +29,7 @@ module DeckMaker {
     }
 
     export
+
     function distance(x1: number, y1: number, x2: number, y2: number) {
         var dx = x2 - x1;
         var dy = y2 - y1;
@@ -33,6 +37,7 @@ module DeckMaker {
     }
 
     export
+
     function getImageCol(imageData: ImageData, pixel: number): Color {
         pixel *= 4;
         return new Color(
@@ -43,6 +48,7 @@ module DeckMaker {
     }
 
     export
+
     function setImageCol(imageData: ImageData, pixel: number, color: Color) {
         pixel *= 4;
         imageData.data[pixel] = color.r;
@@ -61,6 +67,7 @@ module DeckMaker {
     }
 
     export
+
     function floodFill(options: FloodFillOptions): ImageData {
         var x = ~~options.x;
         var y = ~~options.y;
@@ -176,6 +183,14 @@ module DeckMaker {
         scale(sx: number, sy: number): Transform {
             this.sx *= sx;
             this.sy *= sy;
+            return this;
+        }
+
+        multiply(other: Transform): Transform {
+            this.sx *= other.sx;
+            this.sy *= other.sy;
+            this.tx += other.tx;
+            this.ty += other.ty;
             return this;
         }
 

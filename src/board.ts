@@ -91,14 +91,6 @@ module DeckMaker {
             this.refresh();
         }
 
-        undo() {
-            this.page.undo();
-        }
-
-        redo() {
-            this.page.redo();
-        }
-
         refresh() {
             this.page.refresh();
         }

@@ -7,6 +7,7 @@
     <script src="shape.js" type="text/javascript"></script>
     <script src="select.js" type="text/javascript"></script>
     <script src="command.js" type="text/javascript"></script>
+    <script src="layer.js" type="text/javascript"></script>
     <script src="page.js" type="text/javascript"></script>
     <script src="deck.js" type="text/javascript"></script>
     <script src="tool.js" type="text/javascript"></script>
@@ -41,6 +42,8 @@
     var alphaFillTool = null;
     var locationTool = null;
     var pictureTool = null;
+    var undoRedoTool = null;
+    var moveTool = null;
 
     function setTool(newTool) {
         if (tool) {
@@ -62,6 +65,10 @@
                 break;
             case "location":
                 board.setTools([pictureTool, locationTool]);
+                break;
+            case "move":
+                board.setTools([moveTool]);
+                break;
         }
 
         if (newTool) {
@@ -120,11 +127,11 @@
     }
 
     function clickUndo(e) {
-        board.undo();
+        undoRedoTool.undo();
     }
 
     function clickRedo(e) {
-        board.redo();
+        undoRedoTool.redo();
     }
 
     function addPicture(e) {
@@ -152,6 +159,7 @@
         document.getElementById("alphaFill").addEventListener("click", clickTool);
         document.getElementById("picture").addEventListener("change", addPicture);
         document.getElementById("location").addEventListener("click", clickTool);
+        document.getElementById("move").addEventListener("click", clickTool);
 
         document.getElementById("deck1").addEventListener("click", clickDeck);
         document.getElementById("deck2").addEventListener("click", clickDeck);
@@ -161,12 +169,11 @@
         document.getElementById("undo").addEventListener("click", clickUndo);
         document.getElementById("redo").addEventListener("click", clickRedo);
 
-        var boardPage = new DeckMaker.LayerPage("board");
+        var boardPage = new DeckMaker.Page("board");
         board.addPage(boardPage);
 
-        boardPage.addLayer(new DeckMaker.Layer("picture"));
-        boardPage.addLayer(new DeckMaker.Layer("location"));
-        boardPage.addLayer(new DeckMaker.Layer("tool"));
+        boardPage.addLayer(new DeckMaker.PictureLayer());
+        boardPage.addLayer(new DeckMaker.ToolLayer());
 
         var deck1 = new DeckMaker.Deck("deck1");
         var deck2 = new DeckMaker.Deck("deck2");
@@ -177,18 +184,19 @@
         var deckPage = new DeckMaker.DeckPage("deckPage");
         board.addPage(deckPage);
 
-        var cutout1 = new DeckMaker.LayerPage("cutout1");
+        var cutout1 = new DeckMaker.Page("cutout1");
         board.addPage(cutout1);
 
-        cutout1.addLayer(new DeckMaker.Layer("picture"));
-        cutout1.addLayer(new DeckMaker.Layer("template"));
-        cutout1.addLayer(new DeckMaker.Layer("tool"));
+        cutout1.addLayer(new DeckMaker.PictureLayer());
+        cutout1.addLayer(new DeckMaker.ToolLayer());
 
         alphaFillTool = new DeckMaker.AlphaFillTool();
         autoTemplateTool = new DeckMaker.AutoTemplateTool();
         panZoomTool = new DeckMaker.PanZoomTool();
         locationTool = new DeckMaker.LocationTool();
         pictureTool = new DeckMaker.PictureTool();
+        undoRedoTool = new DeckMaker.UndoRedoTool();
+        moveTool = new DeckMaker.MoveTool();
 
         setPage("cutout1");
         setTool("alphaFill");
@@ -208,6 +216,7 @@
     <div id="alphaFill" class="button">ALPHA FILL</div>
     <div id="panZoom" class="button">PAN/ZOOM</div>
     <div id="location" class="button">LOCATION</div>
+    <div id="move" class="button">MOVE</div>
     <div></div>
     <div id="deck1" class="button">DECK1</div>
     <div id="deck2" class="button">DECK2</div>

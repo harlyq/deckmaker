@@ -19,7 +19,12 @@ var DeckMaker;
         };
 
         Shape.prototype.isInside = function (x, y) {
-            return false;
+            var pos = this.transform.getLocal(x, y);
+            return pos.x >= 0 && pos.x < this.width && pos.y >= 0 && pos.y < this.height;
+        };
+
+        Shape.prototype.getTransform = function () {
+            return this.transform;
         };
         return Shape;
     })();
@@ -36,11 +41,6 @@ var DeckMaker;
         }
         Picture.prototype.draw = function (ctx) {
             ctx.drawImage(this.image, 0, 0);
-        };
-
-        Picture.prototype.isInside = function (x, y) {
-            var pos = this.transform.getLocal(x, y);
-            return pos.x >= 0 && pos.x < this.width && pos.y >= 0 && pos.y < this.height;
         };
 
         Picture.prototype.setSrc = function (src) {
@@ -65,11 +65,6 @@ var DeckMaker;
             ctx.strokeRect(0, 0, this.width, this.height);
             ctx.restore();
         };
-
-        Location.prototype.isInside = function (x, y) {
-            var pos = this.transform.getLocal(x, y);
-            return pos.x >= 0 && pos.x < this.width && pos.y >= 0 && pos.y < this.height;
-        };
         return Location;
     })(Shape);
     DeckMaker.Location = Location;
@@ -79,11 +74,20 @@ var DeckMaker;
         __extends(GroupShape, _super);
         function GroupShape() {
             _super.apply(this, arguments);
+            this.shapes = [];
+            this.oldTransforms = [];
         }
         GroupShape.prototype.setShapes = function (shapes) {
             this.shapes = shapes;
+            this.encloseShapes();
+        };
 
-            this.calcBounds();
+        GroupShape.prototype.applyTransformToShapes = function () {
+            for (var i = 0; i < this.shapes.length; ++i) {
+                var newTransform = this.oldTransforms[i].clone();
+                newTransform.multiply(this.getTransform());
+                this.shapes[i].getTransform().copy(newTransform);
+            }
         };
 
         GroupShape.prototype.draw = function (ctx) {
@@ -94,20 +98,23 @@ var DeckMaker;
             ctx.restore();
         };
 
-        GroupShape.prototype.calcBounds = function () {
+        GroupShape.prototype.encloseShapes = function () {
             var minX = -1e10;
             var minY = -1e10;
             var maxX = 1e10;
             var maxY = 1e10;
-            this.transform.setIdentity();
+            this.getTransform().setIdentity();
+            this.oldTransforms.length = 0;
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
+                var transform = shape.getTransform();
+                this.oldTransforms[i] = transform.clone();
 
-                var x = shape.transform.tx;
-                var y = shape.transform.ty;
-                var w = shape.transform.sx * shape.width;
-                var h = shape.transform.sy * shape.height;
+                var x = transform.tx;
+                var y = transform.ty;
+                var w = transform.sx * shape.width;
+                var h = transform.sy * shape.height;
                 var x1 = Math.min(x, x + w);
                 var y1 = Math.min(y, y + h);
                 var x2 = Math.max(x, x + w);
@@ -119,7 +126,7 @@ var DeckMaker;
                 var maxY = Math.max(y2, maxY);
             }
 
-            this.transform.translate(x1, y1);
+            this.getTransform().translate(x1, y1);
             this.width = x2 - x1;
             this.height = y2 - y1;
         };

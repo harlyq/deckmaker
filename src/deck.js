@@ -61,9 +61,10 @@ var DeckMaker;
         Template.prototype.drawCard = function (ctx, cardWidth, cardHeight) {
             ctx.save();
 
-            var pictureLayer = this.page.getLayer("picture");
-            var tx = this.transform.tx;
-            var ty = this.transform.ty;
+            var pictureLayer = this.page.getLayer(DeckMaker.PictureLayer);
+            var transform = this.getTransform();
+            var tx = transform.tx;
+            var ty = transform.ty;
             var w = this.width;
             var h = this.height;
             ctx.drawImage(pictureLayer.canvas, tx, ty, w, h, 0, 0, cardWidth, cardHeight);
@@ -72,7 +73,7 @@ var DeckMaker;
         };
 
         Template.prototype.isInside = function (x, y) {
-            var pos = this.transform.getLocal(x, y);
+            var pos = this.getTransform().getLocal(x, y);
 
             // ray-casting algorithm based on
             // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html

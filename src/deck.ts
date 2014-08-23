@@ -57,9 +57,10 @@ module DeckMaker {
         drawCard(ctx: CanvasRenderingContext2D, cardWidth: number, cardHeight: number) {
             ctx.save();
 
-            var pictureLayer = this.page.getLayer("picture");
-            var tx = this.transform.tx;
-            var ty = this.transform.ty;
+            var pictureLayer = this.page.getLayer(PictureLayer);
+            var transform = this.getTransform();
+            var tx = transform.tx;
+            var ty = transform.ty;
             var w = this.width;
             var h = this.height;
             ctx.drawImage(pictureLayer.canvas, tx, ty, w, h, 0, 0, cardWidth, cardHeight);
@@ -68,7 +69,7 @@ module DeckMaker {
         }
 
         isInside(x: number, y: number): boolean {
-            var pos = this.transform.getLocal(x, y);
+            var pos = this.getTransform().getLocal(x, y);
 
             // ray-casting algorithm based on
             // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html

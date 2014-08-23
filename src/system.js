@@ -167,6 +167,14 @@ var DeckMaker;
             return this;
         };
 
+        Transform.prototype.multiply = function (other) {
+            this.sx *= other.sx;
+            this.sy *= other.sy;
+            this.tx += other.tx;
+            this.ty += other.ty;
+            return this;
+        };
+
         Transform.prototype.setIdentity = function () {
             this.sx = this.sy = 1;
             this.tx = this.ty = 0;

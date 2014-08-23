@@ -8,10 +8,6 @@ var DeckMaker;
             this.selectedShapes = [];
             this.selectGroup = new DeckMaker.GroupShape();
         }
-        SelectList.prototype.refresh = function () {
-            this.rebuildSelectGroup();
-        };
-
         SelectList.prototype.reset = function () {
             this.selectedShapes.length = 0;
             this.selectGroup.setShapes([]);
@@ -22,7 +18,7 @@ var DeckMaker;
             var index = this.selectedShapes.indexOf(shape);
             if (index !== -1) {
                 this.selectedShapes.splice(index, 1);
-                this.rebuildSelectGroup();
+                this.rebuild();
             }
         };
 
@@ -35,7 +31,7 @@ var DeckMaker;
                 else
                     this.selectedShapes.splice(index, 1);
             }
-            this.rebuildSelectGroup();
+            this.rebuild();
         };
 
         SelectList.prototype.isSelected = function (shape) {
@@ -44,7 +40,7 @@ var DeckMaker;
 
         SelectList.prototype.setSelectedShapes = function (shapes) {
             this.selectedShapes = shapes.slice(); // copy
-            this.rebuildSelectGroup();
+            this.rebuild();
         };
 
         // returns the instance
@@ -52,16 +48,20 @@ var DeckMaker;
             return this.selectedShapes;
         };
 
+        SelectList.prototype.getSelectGroup = function () {
+            return this.selectGroup;
+        };
+
         SelectList.prototype.clearSelectedShapes = function () {
             this.selectedShapes.length = 0;
-            this.rebuildSelectGroup();
+            this.rebuild();
         };
 
         SelectList.prototype.draw = function (ctx) {
             this.selectGroup.draw(ctx);
         };
 
-        SelectList.prototype.rebuildSelectGroup = function () {
+        SelectList.prototype.rebuild = function () {
             this.selectGroup.setShapes(this.selectedShapes);
         };
         return SelectList;

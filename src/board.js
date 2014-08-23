@@ -92,14 +92,6 @@ var DeckMaker;
             this.refresh();
         };
 
-        Board.prototype.undo = function () {
-            this.page.undo();
-        };
-
-        Board.prototype.redo = function () {
-            this.page.redo();
-        };
-
         Board.prototype.refresh = function () {
             this.page.refresh();
         };

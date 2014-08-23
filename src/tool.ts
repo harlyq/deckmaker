@@ -12,6 +12,8 @@ module DeckMaker {
         isInside(x: number, y: number): boolean {
             return false;
         }
+
+        draw(ctx: CanvasRenderingContext2D) {}
     }
 
     //---------------------------------
@@ -30,9 +32,9 @@ module DeckMaker {
             if (!page)
                 return;
 
-            var locationLayer = page.getLayer("location");
-            var toolLayer = page.getLayer("tool");
-            if (!toolLayer || !locationLayer)
+            var pictureLayer = page.getLayer(PictureLayer);
+            var toolLayer = page.getLayer(ToolLayer);
+            if (!toolLayer || !pictureLayer)
                 return;
 
             var panZoom = page.panZoom;
@@ -44,7 +46,7 @@ module DeckMaker {
                     this.hasFocus = isUsed = true;
                     this.x1 = this.x2 = pos.x;
                     this.y1 = this.y2 = pos.y;
-                    toolLayer.addThing(this);
+                    toolLayer.addTool(this);
                     break;
 
                 case TouchState.Move:
@@ -58,11 +60,11 @@ module DeckMaker {
                 case TouchState.Up:
                     if (this.hasFocus) {
                         if (this.x2 !== this.x1 && this.y2 !== this.y1) {
-                            page.addCommand(new LocationCommand(
+                            page.getCommandList().addCommand(new LocationCommand(
                                 this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
                         }
                         this.hasFocus = false;
-                        toolLayer.removeThing(this);
+                        toolLayer.removeTool(this);
                         isUsed = true;
                     }
                     break;
@@ -74,7 +76,7 @@ module DeckMaker {
             }
         }
 
-        draw(ctx) {
+        draw(ctx: CanvasRenderingContext2D) {
             if (!this.hasFocus)
                 return;
 
@@ -90,25 +92,25 @@ module DeckMaker {
     //---------------------------------
     class LocationCommand implements Command {
         location: Location;
-        locationLayer: Layer;
+        pictureLayer: Layer;
         page: Page;
 
         constructor(x: number, y: number, w: number, h: number) {
             this.location = new Location(w, h);
-            this.location.transform.translate(x, y);
+            this.location.getTransform().translate(x, y);
             this.page = getEnv("page");
-            this.locationLayer = this.page.getLayer("location");
+            this.pictureLayer = this.page.getLayer(PictureLayer);
         }
 
         redo() {
-            this.locationLayer.addThing(this.location);
-            this.locationLayer.rebuild();
+            this.pictureLayer.addShape(this.location);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         }
 
         undo() {
-            this.locationLayer.removeThing(this.location);
-            this.locationLayer.rebuild();
+            this.pictureLayer.removeShape(this.location);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         }
     }
@@ -191,12 +193,16 @@ module DeckMaker {
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
-            var pictureLayer = page.getLayer("picture");
-            var picture: Picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
-            if (picture === null)
+            var pictureLayer = page.getLayer(PictureLayer);
+            if (!pictureLayer)
                 return;
 
-            pos = picture.transform.getLocal(pos.x, pos.y);
+            var shape: Shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+            if (!shape || !(shape instanceof Picture))
+                return;
+
+            var picture = < Picture > shape;
+            pos = picture.getTransform().getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
             this.canvas.height = picture.height;
@@ -255,17 +261,17 @@ module DeckMaker {
             if (!page || !deck)
                 return;
 
-            var pictureLayer = page.getLayer("picture");
-            var templateLayer = page.getLayer("template");
-            if (!pictureLayer || !templateLayer)
+            var pictureLayer = page.getLayer(PictureLayer);
+            if (!pictureLayer)
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
-            var picture: Picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
-            if (picture === null)
+            var shape: Shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+            if (shape === null || !(shape instanceof Picture))
                 return;
 
-            pos = picture.transform.getLocal(pos.x, pos.y);
+            var picture = < Picture > shape;
+            pos = picture.getTransform().getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
             this.canvas.height = picture.height;
@@ -300,10 +306,10 @@ module DeckMaker {
             var newTemplate = new Template(
                 [0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY],
                 page);
-            newTemplate.transform.copy(picture.transform);
-            newTemplate.transform.translate(minX, minY); // top left
+            newTemplate.getTransform().copy(picture.getTransform());
+            newTemplate.getTransform().translate(minX, minY); // top left
 
-            page.addCommand(new AutoTemplateCommand([newTemplate]));
+            page.getCommandList().addCommand(new AutoTemplateCommand([newTemplate]));
         }
     }
 
@@ -312,27 +318,27 @@ module DeckMaker {
         templates: Template[] = [];
         page: Page;
         deck: Deck;
-        templateLayer: Layer;
+        pictureLayer: Layer;
 
         constructor(templates: Template[]) {
             this.templates = templates.slice(); // copy
 
             this.deck = getEnv("deck");
             this.page = getEnv("page");
-            this.templateLayer = this.page.getLayer("picture");
+            this.pictureLayer = this.page.getLayer(PictureLayer);
         }
 
         redo() {
             this.deck.addTemplates(this.templates);
-            this.templateLayer.addThings(this.templates);
-            this.templateLayer.rebuild();
+            this.pictureLayer.addShapes(this.templates);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         }
 
         undo() {
             this.deck.removeTemplates(this.templates);
-            this.templateLayer.removeThings(this.templates);
-            this.templateLayer.rebuild();
+            this.pictureLayer.removeShapes(this.templates);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         }
     }
@@ -344,10 +350,10 @@ module DeckMaker {
             if (!page)
                 return;
 
-            if (!page.getLayer("picture"))
+            if (!page.getLayer(PictureLayer))
                 return;
 
-            page.addCommand(new PictureCommand(src));
+            page.getCommandList().addCommand(new PictureCommand(src));
         }
     }
 
@@ -359,21 +365,138 @@ module DeckMaker {
 
         constructor(src: string) {
             this.picture = new Picture(src);
-            this.picture.transform.translate(10, 10);
+            this.picture.getTransform().translate(10, 10);
             this.page = getEnv("page");
-            this.pictureLayer = this.page.getLayer("picture");
+            this.pictureLayer = this.page.getLayer(PictureLayer);
         }
 
         redo() {
-            this.pictureLayer.addThing(this.picture);
+            this.pictureLayer.addShape(this.picture);
             this.pictureLayer.rebuild();
             this.page.refresh();
         }
 
         undo() {
-            this.pictureLayer.removeThing(this.picture);
+            this.pictureLayer.removeShape(this.picture);
             this.pictureLayer.rebuild();
             this.page.refresh();
+        }
+    }
+
+    //---------------------------------
+    export class UndoRedoTool extends Tool {
+        undo() {
+            var page = getEnv("page");
+            page.getCommandList().undo();
+            page.rebuild();
+        }
+
+        redo() {
+            var page = getEnv("page");
+            page.getCommandList().redo();
+            page.rebuild();
+        }
+    }
+
+    //---------------------------------
+    export class MoveTool extends Tool {
+        oldTransforms: Transform[] = [];
+
+        touched(touch: Touch) {
+            var page: Page = getEnv("page");
+            if (!page)
+                return;
+
+            var toolLayer = page.getLayer(ToolLayer);
+            var pictureLayer = page.getLayer(PictureLayer);
+            if (!toolLayer || !pictureLayer)
+                return; // nothing to move
+
+            var pos = page.panZoom.getGlobal(touch.x, touch.y);
+            var selection = page.getSelection();
+            var hadFocus = this.hasFocus;
+
+            switch (touch.state) {
+                case TouchState.Down:
+                    var validMove = true;
+                    if (!selection.getSelectGroup().isInside(pos.x, pos.y)) {
+                        var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+                        if (shape)
+                            selection.setSelectedShapes([shape]);
+                        else
+                            validMove = false;
+                    }
+
+                    if (validMove) {
+                        var shapes = selection.getSelectedShapes();
+                        this.oldTransforms.length = 0;
+                        for (var i = 0; i < shapes.length; ++i)
+                            this.oldTransforms[i] = shapes[i].getTransform().clone();
+
+                        this.moveShapes(shapes, pictureLayer, toolLayer);
+                        this.hasFocus = true;
+                    }
+                    break;
+
+                case TouchState.Move:
+                    if (this.hasFocus) {
+                        var groupShape = selection.getSelectGroup();
+                        groupShape.getTransform().translate(touch.dx, touch.dy);
+                        groupShape.applyTransformToShapes();
+                        toolLayer.rebuild();
+                    }
+                    break;
+
+                case TouchState.Up:
+                    if (this.hasFocus) {
+                        var shapes = selection.getSelectedShapes();
+
+                        var moveCommand = new MoveCommand(shapes, this.oldTransforms);
+                        page.getCommandList().addCommand(moveCommand);
+
+                        this.moveShapes(shapes, toolLayer, pictureLayer);
+                        this.hasFocus = false;
+                    }
+                    break;
+            }
+
+            if (this.hasFocus || hadFocus)
+                page.refresh();
+        }
+
+        private moveShapes(shapes: Shape[], srcLayer: Layer, destLayer: Layer) {
+            srcLayer.removeShapes(shapes);
+            destLayer.addShapes(shapes);
+
+            srcLayer.rebuild();
+            destLayer.rebuild();
+        }
+    }
+
+    //---------------------------------
+    class MoveCommand implements Command {
+        shapes: Shape[];
+        oldTransforms: Transform[];
+        newTransforms: Transform[] = [];
+
+        constructor(shapes: Shape[], oldTransforms: Transform[]) {
+            this.shapes = shapes.slice(); // copy
+            this.oldTransforms = oldTransforms.slice(); // copy
+            for (var i = 0; i < shapes.length; ++i) {
+                this.newTransforms[i] = shapes[i].getTransform().clone();
+            }
+        }
+
+        redo() {
+            for (var i = 0; i < this.shapes.length; ++i) {
+                this.shapes[i].getTransform().copy(this.newTransforms[i]);
+            }
+        }
+
+        undo() {
+            for (var i = 0; i < this.shapes.length; ++i) {
+                this.shapes[i].getTransform().copy(this.oldTransforms[i]);
+            }
         }
     }
 }

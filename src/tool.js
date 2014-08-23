@@ -19,6 +19,9 @@ var DeckMaker;
         Tool.prototype.isInside = function (x, y) {
             return false;
         };
+
+        Tool.prototype.draw = function (ctx) {
+        };
         return Tool;
     })();
     DeckMaker.Tool = Tool;
@@ -38,9 +41,9 @@ var DeckMaker;
             if (!page)
                 return;
 
-            var locationLayer = page.getLayer("location");
-            var toolLayer = page.getLayer("tool");
-            if (!toolLayer || !locationLayer)
+            var pictureLayer = page.getLayer(DeckMaker.PictureLayer);
+            var toolLayer = page.getLayer(DeckMaker.ToolLayer);
+            if (!toolLayer || !pictureLayer)
                 return;
 
             var panZoom = page.panZoom;
@@ -52,7 +55,7 @@ var DeckMaker;
                     this.hasFocus = isUsed = true;
                     this.x1 = this.x2 = pos.x;
                     this.y1 = this.y2 = pos.y;
-                    toolLayer.addThing(this);
+                    toolLayer.addTool(this);
                     break;
 
                 case 1 /* Move */:
@@ -66,10 +69,10 @@ var DeckMaker;
                 case 2 /* Up */:
                     if (this.hasFocus) {
                         if (this.x2 !== this.x1 && this.y2 !== this.y1) {
-                            page.addCommand(new LocationCommand(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
+                            page.getCommandList().addCommand(new LocationCommand(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
                         }
                         this.hasFocus = false;
-                        toolLayer.removeThing(this);
+                        toolLayer.removeTool(this);
                         isUsed = true;
                     }
                     break;
@@ -100,19 +103,19 @@ var DeckMaker;
     var LocationCommand = (function () {
         function LocationCommand(x, y, w, h) {
             this.location = new DeckMaker.Location(w, h);
-            this.location.transform.translate(x, y);
+            this.location.getTransform().translate(x, y);
             this.page = DeckMaker.getEnv("page");
-            this.locationLayer = this.page.getLayer("location");
+            this.pictureLayer = this.page.getLayer(DeckMaker.PictureLayer);
         }
         LocationCommand.prototype.redo = function () {
-            this.locationLayer.addThing(this.location);
-            this.locationLayer.rebuild();
+            this.pictureLayer.addShape(this.location);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         };
 
         LocationCommand.prototype.undo = function () {
-            this.locationLayer.removeThing(this.location);
-            this.locationLayer.rebuild();
+            this.pictureLayer.removeShape(this.location);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         };
         return LocationCommand;
@@ -191,12 +194,16 @@ var DeckMaker;
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
-            var pictureLayer = page.getLayer("picture");
-            var picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
-            if (picture === null)
+            var pictureLayer = page.getLayer(DeckMaker.PictureLayer);
+            if (!pictureLayer)
                 return;
 
-            pos = picture.transform.getLocal(pos.x, pos.y);
+            var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+            if (!shape || !(shape instanceof DeckMaker.Picture))
+                return;
+
+            var picture = shape;
+            pos = picture.getTransform().getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
             this.canvas.height = picture.height;
@@ -251,17 +258,17 @@ var DeckMaker;
             if (!page || !deck)
                 return;
 
-            var pictureLayer = page.getLayer("picture");
-            var templateLayer = page.getLayer("template");
-            if (!pictureLayer || !templateLayer)
+            var pictureLayer = page.getLayer(DeckMaker.PictureLayer);
+            if (!pictureLayer)
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
-            var picture = pictureLayer.getThingFromTouch(pos.x, pos.y);
-            if (picture === null)
+            var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+            if (shape === null || !(shape instanceof DeckMaker.Picture))
                 return;
 
-            pos = picture.transform.getLocal(pos.x, pos.y);
+            var picture = shape;
+            pos = picture.getTransform().getLocal(pos.x, pos.y);
 
             this.canvas.width = picture.width;
             this.canvas.height = picture.height;
@@ -294,10 +301,10 @@ var DeckMaker;
                 return;
 
             var newTemplate = new DeckMaker.Template([0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY], page);
-            newTemplate.transform.copy(picture.transform);
-            newTemplate.transform.translate(minX, minY); // top left
+            newTemplate.getTransform().copy(picture.getTransform());
+            newTemplate.getTransform().translate(minX, minY); // top left
 
-            page.addCommand(new AutoTemplateCommand([newTemplate]));
+            page.getCommandList().addCommand(new AutoTemplateCommand([newTemplate]));
         };
         return AutoTemplateTool;
     })(Tool);
@@ -311,19 +318,19 @@ var DeckMaker;
 
             this.deck = DeckMaker.getEnv("deck");
             this.page = DeckMaker.getEnv("page");
-            this.templateLayer = this.page.getLayer("picture");
+            this.pictureLayer = this.page.getLayer(DeckMaker.PictureLayer);
         }
         AutoTemplateCommand.prototype.redo = function () {
             this.deck.addTemplates(this.templates);
-            this.templateLayer.addThings(this.templates);
-            this.templateLayer.rebuild();
+            this.pictureLayer.addShapes(this.templates);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         };
 
         AutoTemplateCommand.prototype.undo = function () {
             this.deck.removeTemplates(this.templates);
-            this.templateLayer.removeThings(this.templates);
-            this.templateLayer.rebuild();
+            this.pictureLayer.removeShapes(this.templates);
+            this.pictureLayer.rebuild();
             this.page.refresh();
         };
         return AutoTemplateCommand;
@@ -340,10 +347,10 @@ var DeckMaker;
             if (!page)
                 return;
 
-            if (!page.getLayer("picture"))
+            if (!page.getLayer(DeckMaker.PictureLayer))
                 return;
 
-            page.addCommand(new PictureCommand(src));
+            page.getCommandList().addCommand(new PictureCommand(src));
         };
         return PictureTool;
     })(Tool);
@@ -353,21 +360,146 @@ var DeckMaker;
     var PictureCommand = (function () {
         function PictureCommand(src) {
             this.picture = new DeckMaker.Picture(src);
-            this.picture.transform.translate(10, 10);
+            this.picture.getTransform().translate(10, 10);
             this.page = DeckMaker.getEnv("page");
-            this.pictureLayer = this.page.getLayer("picture");
+            this.pictureLayer = this.page.getLayer(DeckMaker.PictureLayer);
         }
         PictureCommand.prototype.redo = function () {
-            this.pictureLayer.addThing(this.picture);
+            this.pictureLayer.addShape(this.picture);
             this.pictureLayer.rebuild();
             this.page.refresh();
         };
 
         PictureCommand.prototype.undo = function () {
-            this.pictureLayer.removeThing(this.picture);
+            this.pictureLayer.removeShape(this.picture);
             this.pictureLayer.rebuild();
             this.page.refresh();
         };
         return PictureCommand;
+    })();
+
+    //---------------------------------
+    var UndoRedoTool = (function (_super) {
+        __extends(UndoRedoTool, _super);
+        function UndoRedoTool() {
+            _super.apply(this, arguments);
+        }
+        UndoRedoTool.prototype.undo = function () {
+            var page = DeckMaker.getEnv("page");
+            page.getCommandList().undo();
+            page.rebuild();
+        };
+
+        UndoRedoTool.prototype.redo = function () {
+            var page = DeckMaker.getEnv("page");
+            page.getCommandList().redo();
+            page.rebuild();
+        };
+        return UndoRedoTool;
+    })(Tool);
+    DeckMaker.UndoRedoTool = UndoRedoTool;
+
+    //---------------------------------
+    var MoveTool = (function (_super) {
+        __extends(MoveTool, _super);
+        function MoveTool() {
+            _super.apply(this, arguments);
+            this.oldTransforms = [];
+        }
+        MoveTool.prototype.touched = function (touch) {
+            var page = DeckMaker.getEnv("page");
+            if (!page)
+                return;
+
+            var toolLayer = page.getLayer(DeckMaker.ToolLayer);
+            var pictureLayer = page.getLayer(DeckMaker.PictureLayer);
+            if (!toolLayer || !pictureLayer)
+                return;
+
+            var pos = page.panZoom.getGlobal(touch.x, touch.y);
+            var selection = page.getSelection();
+            var hadFocus = this.hasFocus;
+
+            switch (touch.state) {
+                case 0 /* Down */:
+                    var validMove = true;
+                    if (!selection.getSelectGroup().isInside(pos.x, pos.y)) {
+                        var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+                        if (shape)
+                            selection.setSelectedShapes([shape]);
+                        else
+                            validMove = false;
+                    }
+
+                    if (validMove) {
+                        var shapes = selection.getSelectedShapes();
+                        this.oldTransforms.length = 0;
+                        for (var i = 0; i < shapes.length; ++i)
+                            this.oldTransforms[i] = shapes[i].getTransform().clone();
+
+                        this.moveShapes(shapes, pictureLayer, toolLayer);
+                        this.hasFocus = true;
+                    }
+                    break;
+
+                case 1 /* Move */:
+                    if (this.hasFocus) {
+                        var groupShape = selection.getSelectGroup();
+                        groupShape.getTransform().translate(touch.dx, touch.dy);
+                        groupShape.applyTransformToShapes();
+                        toolLayer.rebuild();
+                    }
+                    break;
+
+                case 2 /* Up */:
+                    if (this.hasFocus) {
+                        var shapes = selection.getSelectedShapes();
+
+                        var moveCommand = new MoveCommand(shapes, this.oldTransforms);
+                        page.getCommandList().addCommand(moveCommand);
+
+                        this.moveShapes(shapes, toolLayer, pictureLayer);
+                        this.hasFocus = false;
+                    }
+                    break;
+            }
+
+            if (this.hasFocus || hadFocus)
+                page.refresh();
+        };
+
+        MoveTool.prototype.moveShapes = function (shapes, srcLayer, destLayer) {
+            srcLayer.removeShapes(shapes);
+            destLayer.addShapes(shapes);
+
+            srcLayer.rebuild();
+            destLayer.rebuild();
+        };
+        return MoveTool;
+    })(Tool);
+    DeckMaker.MoveTool = MoveTool;
+
+    //---------------------------------
+    var MoveCommand = (function () {
+        function MoveCommand(shapes, oldTransforms) {
+            this.newTransforms = [];
+            this.shapes = shapes.slice(); // copy
+            this.oldTransforms = oldTransforms.slice(); // copy
+            for (var i = 0; i < shapes.length; ++i) {
+                this.newTransforms[i] = shapes[i].getTransform().clone();
+            }
+        }
+        MoveCommand.prototype.redo = function () {
+            for (var i = 0; i < this.shapes.length; ++i) {
+                this.shapes[i].getTransform().copy(this.newTransforms[i]);
+            }
+        };
+
+        MoveCommand.prototype.undo = function () {
+            for (var i = 0; i < this.shapes.length; ++i) {
+                this.shapes[i].getTransform().copy(this.oldTransforms[i]);
+            }
+        };
+        return MoveCommand;
     })();
 })(DeckMaker || (DeckMaker = {}));

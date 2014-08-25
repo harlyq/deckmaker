@@ -310,6 +310,13 @@ module DeckMaker {
             newTemplate.getTransform().translate(minX, minY); // top left
 
             page.getCommandList().addCommand(new AutoTemplateCommand([newTemplate]));
+            page.getSelection().setSelectedShapes([newTemplate]);
+
+            var propertyPanel = getEnv("propertyPanel");
+            if (propertyPanel)
+                propertyPanel.setObjects([newTemplate], function() {
+                    page.rebuildLayer(TemplateLayer);
+                });
         }
     }
 
@@ -353,19 +360,18 @@ module DeckMaker {
             if (!page.getLayer(PictureLayer))
                 return;
 
-            page.getCommandList().addCommand(new PictureCommand(src));
+            var picture = new Picture(src);
+            picture.getTransform().translate(10, 10);
+            page.getCommandList().addCommand(new PictureCommand(picture));
         }
     }
 
     //---------------------------------
     class PictureCommand implements Command {
-        picture: Picture;
         page: Page;
         pictureLayer: Layer;
 
-        constructor(src: string) {
-            this.picture = new Picture(src);
-            this.picture.getTransform().translate(10, 10);
+        constructor(public picture: Picture) {
             this.page = getEnv("page");
             this.pictureLayer = this.page.getLayer(PictureLayer);
         }

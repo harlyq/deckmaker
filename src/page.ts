@@ -48,6 +48,17 @@ module DeckMaker {
             return this;
         }
 
+        rebuildLayer < T extends Layer > (type: new(...args: any[]) => T) {
+            for (var i = 0; i < this.layers.length; ++i) {
+                var layer = this.layers[i];
+                if (layer instanceof type)
+                    layer.rebuild();
+            }
+
+            this.selection.rebuild();
+            this.refresh();
+        }
+
         rebuild() {
             for (var i = 0; i < this.layers.length; ++i)
                 this.layers[i].rebuild();

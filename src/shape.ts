@@ -44,21 +44,6 @@ module DeckMaker {
     }
 
     //---------------------------------
-    export class Location extends Shape {
-        constructor(width: number, height: number) {
-            super();
-            this.width = width;
-            this.height = height;
-        }
-
-        draw(ctx: CanvasRenderingContext2D) {
-            ctx.save();
-            ctx.strokeRect(0, 0, this.width, this.height);
-            ctx.restore();
-        }
-    }
-
-    //---------------------------------
     export class GroupShape extends Shape {
         private shapes: Shape[] = [];
         private oldTransforms: Transform[] = [];

@@ -4,10 +4,74 @@
 module DeckMaker {
 
     //---------------------------------
+    export class Card extends Shape {
+        location: Location;
+
+        constructor(public width: number, public height: number, public template: Template) {
+            super();
+        }
+
+        draw(ctx: CanvasRenderingContext2D) {
+            this.template.drawCard(ctx, this.width, this.height);
+        }
+    }
+
+    //---------------------------------
+    export class Location extends Shape {
+        cards: Card[];
+
+        constructor(width: number, height: number) {
+            super();
+            this.width = width;
+            this.height = height;
+        }
+
+        private addCard(card: Card) {
+            if (card.location) {
+                if (card.location === this)
+                    return; // already added
+
+                card.location.removeCard(card);
+            }
+
+            card.location = this;
+            this.cards.push(card);
+        }
+
+        private removeCard(card: Card) {
+            var i = this.cards.indexOf(card);
+            if (i !== -1) {
+                this.cards.splice(i, 1);
+                card.location = null;
+            }
+        }
+
+        addCards(cards: Card[]) {
+            for (var i = 0; i < cards.length; ++i)
+                this.addCard(cards[i]);
+        }
+
+        removeCards(cards: Card[]) {
+            for (var i = 0; i < cards.length; ++i)
+                this.removeCard(cards[i]);
+        }
+
+        draw(ctx: CanvasRenderingContext2D) {
+            ctx.save();
+            ctx.strokeRect(0, 0, this.width, this.height);
+
+            for (var i = 0; i < this.cards.length; ++i)
+                this.cards[i].draw(ctx);
+
+            ctx.restore();
+        }
+    }
+
+    //---------------------------------
     export class Template extends Shape {
         private vertices: number[];
         private isBack: boolean = false;
-        count: number = 1;
+        numCards: number = 1;
         deck: Deck = null;
 
         constructor(vertices: number[], private page: Page) {
@@ -52,6 +116,12 @@ module DeckMaker {
             }
             ctx.closePath();
             ctx.stroke();
+
+            ctx.fillStyle = 'grey'
+            ctx.font = '20pt arial';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.numCards.toString(), this.width / 2, this.height / 2);
         }
 
         drawCard(ctx: CanvasRenderingContext2D, cardWidth: number, cardHeight: number) {
@@ -92,6 +162,20 @@ module DeckMaker {
             return inside;
         }
     }
+
+    //---------------------------------
+    export
+    var TemplateDefinitionGroup: PropertyPanel.DefinitionGroup = {
+        canUse: obj => {
+            return obj instanceof Template;
+        },
+
+        definitions: [{
+            prop: 'isBack'
+        }, {
+            prop: 'numCards'
+        }]
+    };
 
     //---------------------------------
     export class Deck {
@@ -141,6 +225,16 @@ module DeckMaker {
             for (var i = 0; i < templates.length; ++i)
                 this.removeTemplate(templates[i]);
             return this;
+        }
+
+        createCards(): Card[] {
+            var cards: Card[] = [];
+            for (var i = 0; i < this.templates.length; ++i) {
+                var template = this.templates[i];
+                for (var j = 0; j < template.numCards; ++j)
+                    cards.push(new Card(this.cardWidth, this.cardHeight, template));
+            }
+            return cards;
         }
 
         draw(ctx) {

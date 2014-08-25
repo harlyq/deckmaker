@@ -21,6 +21,18 @@
         border: 4px solid blue;
         margin: 0px;
     }
+    #canvas {
+        display: inline-block;
+    }
+    #propertyPanel {
+        display: inline-block;
+    }
+    .PropertyPanelElement {
+        display: block;
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: pointer;
+    }
     </style>
 
     <script type="text/javascript">
@@ -35,6 +47,7 @@
     var pictureTool = null;
     var undoRedoTool = null;
     var moveTool = null;
+    var propertyPanel = null;
 
     function setTool(newTool) {
         if (tool) {
@@ -160,6 +173,10 @@
         document.getElementById("undo").addEventListener("click", clickUndo);
         document.getElementById("redo").addEventListener("click", clickRedo);
 
+        propertyPanel = new PropertyPanel.Panel(document.getElementById('propertyPanel'));
+        propertyPanel.addDefinitionGroup(DeckMaker.TemplateDefinitionGroup);
+        propertyPanel.addEditor(new PropertyPanel.DefaultEditor());
+
         var boardPage = new DeckMaker.Page("board");
         board.addPage(boardPage);
 
@@ -198,6 +215,8 @@
         setPage("cutout1");
         setTool("alphaFill");
         setDeck("deck1");
+
+        DeckMaker.setEnv("propertyPanel", propertyPanel);
     }
     </script>
 </head>
@@ -222,8 +241,10 @@
     <div></div>
     <div id='undo' class="button">UNDO</div>
     <div id='redo' class="button">REDO</div>
-    <div></div>
-    <canvas id="canvas" width="400" height="400"></canvas>
+    <div id='mainLayout'>
+        <canvas id="canvas" width="400" height="400"></canvas>
+        <div id="propertyPanel" width="200" height="400">Properties:</div>
+    </div>
 </body>
 
 </html>

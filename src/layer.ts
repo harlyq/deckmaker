@@ -9,6 +9,7 @@ module DeckMaker {
         ctx: CanvasRenderingContext2D;
         canvas: HTMLCanvasElement;
         shapes: any[] = [];
+        sortShape: (a: Shape, b: Shape) => number;
 
         get width(): number {
             return this.canvas.width;
@@ -29,15 +30,16 @@ module DeckMaker {
             this.ctx = this.canvas.getContext("2d");
         }
 
-        addShape(shape: Shape): Layer {
+        private addShape(shape: Shape): Layer {
             this.shapes.push(shape);
             return this;
         }
 
-        removeShape(shape: Shape): Layer {
+        private removeShape(shape: Shape): Layer {
             var i = this.shapes.indexOf(shape);
-            if (i !== -1)
+            if (i !== -1) {
                 this.shapes.splice(i, 1);
+            }
 
             return this;
         }
@@ -46,6 +48,9 @@ module DeckMaker {
             for (var i = 0; i < shapes.length; ++i)
                 this.addShape(shapes[i]);
 
+            if (typeof this.sortShape === 'function')
+                this.shapes.sort(this.sortShape);
+
             return this;
         }
 
@@ -53,12 +58,23 @@ module DeckMaker {
             for (var i = 0; i < shapes.length; ++i)
                 this.removeShape(shapes[i]);
 
+            if (typeof this.sortShape === 'function')
+                this.shapes.sort(this.sortShape);
+
             return this;
         }
 
         rebuild() {
             var ctx = this.ctx;
-            ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            var w = this.width;
+            var h = this.height;
+            ctx.save();
+            ctx.strokeStyle = "#eee";
+            ctx.lineWidth = 1;
+            ctx.clearRect(0, 0, w, h);
+            ctx.strokeRect(0, 0, w, h);
+            ctx.restore();
+
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
@@ -91,6 +107,11 @@ module DeckMaker {
 
     //---------------------------------
     export class PictureLayer extends Layer {
+
+    }
+
+    //---------------------------------
+    export class TemplateLayer extends Layer {
 
     }
 

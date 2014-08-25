@@ -7,3 +7,4 @@
 /// <reference path="page.ts" />
 /// <reference path="deck.ts" />
 /// <reference path="tool.ts" />
+/// <reference path="board.ts" />

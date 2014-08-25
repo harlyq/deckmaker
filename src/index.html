@@ -2,16 +2,7 @@
 <html>
 
 <head>
-    <script src="system.js" type="text/javascript"></script>
-    <script src="touch.js" type="text/javascript"></script>
-    <script src="shape.js" type="text/javascript"></script>
-    <script src="select.js" type="text/javascript"></script>
-    <script src="command.js" type="text/javascript"></script>
-    <script src="layer.js" type="text/javascript"></script>
-    <script src="page.js" type="text/javascript"></script>
-    <script src="deck.js" type="text/javascript"></script>
-    <script src="tool.js" type="text/javascript"></script>
-    <script src="board.js" type="text/javascript"></script>
+    <script src="deckmaker.js" type="text/javascript"></script>
 
     <style>
     #canvas {
@@ -173,6 +164,7 @@
         board.addPage(boardPage);
 
         boardPage.addLayer(new DeckMaker.PictureLayer());
+        boardPage.addLayer(new DeckMaker.TemplateLayer());
         boardPage.addLayer(new DeckMaker.ToolLayer());
 
         var deck1 = new DeckMaker.Deck("deck1");
@@ -188,6 +180,7 @@
         board.addPage(cutout1);
 
         cutout1.addLayer(new DeckMaker.PictureLayer());
+        cutout1.addLayer(new DeckMaker.TemplateLayer());
         cutout1.addLayer(new DeckMaker.ToolLayer());
 
         alphaFillTool = new DeckMaker.AlphaFillTool();
@@ -197,6 +190,10 @@
         pictureTool = new DeckMaker.PictureTool();
         undoRedoTool = new DeckMaker.UndoRedoTool();
         moveTool = new DeckMaker.MoveTool();
+
+        DeckMaker.Location.drawOrder = 1;
+        DeckMaker.Template.drawOrder = 1;
+        DeckMaker.GroupShape.drawOrder = 2;
 
         setPage("cutout1");
         setTool("alphaFill");

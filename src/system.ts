@@ -194,6 +194,14 @@ module DeckMaker {
             return this;
         }
 
+        inverse(): Transform {
+            this.sx = 1 / this.sx;
+            this.sy = 1 / this.sy;
+            this.tx = -this.tx;
+            this.ty = -this.ty;
+            return this;
+        }
+
         setIdentity(): Transform {
             this.sx = this.sy = 1;
             this.tx = this.ty = 0;

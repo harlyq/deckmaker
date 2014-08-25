@@ -32,13 +32,13 @@ module DeckMaker {
             if (!page)
                 return;
 
-            var pictureLayer = page.getLayer(PictureLayer);
+            var templateLayer = page.getLayer(TemplateLayer);
             var toolLayer = page.getLayer(ToolLayer);
-            if (!toolLayer || !pictureLayer)
+            if (!toolLayer || !templateLayer)
                 return;
 
             var panZoom = page.panZoom;
-            var pos = panZoom.getGlobal(touch.x, touch.y);
+            var pos = panZoom.getLocal(touch.x, touch.y);
             var isUsed = false;
 
             switch (touch.state) {
@@ -92,25 +92,25 @@ module DeckMaker {
     //---------------------------------
     class LocationCommand implements Command {
         location: Location;
-        pictureLayer: Layer;
+        templateLayer: Layer;
         page: Page;
 
         constructor(x: number, y: number, w: number, h: number) {
             this.location = new Location(w, h);
             this.location.getTransform().translate(x, y);
             this.page = getEnv("page");
-            this.pictureLayer = this.page.getLayer(PictureLayer);
+            this.templateLayer = this.page.getLayer(TemplateLayer);
         }
 
         redo() {
-            this.pictureLayer.addShape(this.location);
-            this.pictureLayer.rebuild();
+            this.templateLayer.addShapes([this.location]);
+            this.templateLayer.rebuild();
             this.page.refresh();
         }
 
         undo() {
-            this.pictureLayer.removeShape(this.location);
-            this.pictureLayer.rebuild();
+            this.templateLayer.removeShapes([this.location]);
+            this.templateLayer.rebuild();
             this.page.refresh();
         }
     }
@@ -197,7 +197,7 @@ module DeckMaker {
             if (!pictureLayer)
                 return;
 
-            var shape: Shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+            var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
             if (!shape || !(shape instanceof Picture))
                 return;
 
@@ -262,21 +262,21 @@ module DeckMaker {
                 return;
 
             var pictureLayer = page.getLayer(PictureLayer);
-            if (!pictureLayer)
+            var templateLayer = page.getLayer(TemplateLayer);
+            if (!pictureLayer || !templateLayer)
                 return;
 
             var pos = page.panZoom.getLocal(touch.x, touch.y);
-            var shape: Shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
-            if (shape === null || !(shape instanceof Picture))
+            var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+            if (shape === null)
                 return;
 
-            var picture = < Picture > shape;
-            pos = picture.getTransform().getLocal(pos.x, pos.y);
+            pos = shape.getTransform().getLocal(pos.x, pos.y);
 
-            this.canvas.width = picture.width;
-            this.canvas.height = picture.height;
+            this.canvas.width = shape.width;
+            this.canvas.height = shape.height;
 
-            picture.draw(this.ctx);
+            shape.draw(this.ctx);
 
             var used = new Color(0, 0, 0, 0);
             var minX = 1e10;
@@ -306,7 +306,7 @@ module DeckMaker {
             var newTemplate = new Template(
                 [0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY],
                 page);
-            newTemplate.getTransform().copy(picture.getTransform());
+            newTemplate.getTransform().copy(shape.getTransform());
             newTemplate.getTransform().translate(minX, minY); // top left
 
             page.getCommandList().addCommand(new AutoTemplateCommand([newTemplate]));
@@ -318,27 +318,27 @@ module DeckMaker {
         templates: Template[] = [];
         page: Page;
         deck: Deck;
-        pictureLayer: Layer;
+        templateLayer: Layer;
 
         constructor(templates: Template[]) {
             this.templates = templates.slice(); // copy
 
             this.deck = getEnv("deck");
             this.page = getEnv("page");
-            this.pictureLayer = this.page.getLayer(PictureLayer);
+            this.templateLayer = this.page.getLayer(TemplateLayer);
         }
 
         redo() {
             this.deck.addTemplates(this.templates);
-            this.pictureLayer.addShapes(this.templates);
-            this.pictureLayer.rebuild();
+            this.templateLayer.addShapes(this.templates);
+            this.templateLayer.rebuild();
             this.page.refresh();
         }
 
         undo() {
             this.deck.removeTemplates(this.templates);
-            this.pictureLayer.removeShapes(this.templates);
-            this.pictureLayer.rebuild();
+            this.templateLayer.removeShapes(this.templates);
+            this.templateLayer.rebuild();
             this.page.refresh();
         }
     }
@@ -371,13 +371,13 @@ module DeckMaker {
         }
 
         redo() {
-            this.pictureLayer.addShape(this.picture);
+            this.pictureLayer.addShapes([this.picture]);
             this.pictureLayer.rebuild();
             this.page.refresh();
         }
 
         undo() {
-            this.pictureLayer.removeShape(this.picture);
+            this.pictureLayer.removeShapes([this.picture]);
             this.pictureLayer.rebuild();
             this.page.refresh();
         }
@@ -409,59 +409,68 @@ module DeckMaker {
 
             var toolLayer = page.getLayer(ToolLayer);
             var pictureLayer = page.getLayer(PictureLayer);
-            if (!toolLayer || !pictureLayer)
+            var templateLayer = page.getLayer(TemplateLayer);
+            if (!toolLayer || (!pictureLayer || !templateLayer))
                 return; // nothing to move
 
-            var pos = page.panZoom.getGlobal(touch.x, touch.y);
+            var pos = page.panZoom.getLocal(touch.x, touch.y);
             var selection = page.getSelection();
+            var groupShape = selection.getSelectGroup();
             var hadFocus = this.hasFocus;
 
             switch (touch.state) {
                 case TouchState.Down:
-                    var validMove = true;
-                    if (!selection.getSelectGroup().isInside(pos.x, pos.y)) {
-                        var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
-                        if (shape)
-                            selection.setSelectedShapes([shape]);
-                        else
-                            validMove = false;
+                    var shape: Shape = null;
+
+                    var templateShape = templateLayer.getShapeFromXY(pos.x, pos.y);
+                    if (templateShape) {
+                        shape = templateShape;
+                    } else {
+                        var pictureShape = pictureLayer.getShapeFromXY(pos.x, pos.y);
+                        if (pictureShape)
+                            shape = pictureShape;
                     }
 
-                    if (validMove) {
+                    if (shape) {
+                        if (!groupShape.contains(shape))
+                            groupShape.setShapes([shape]);
+
                         var shapes = selection.getSelectedShapes();
                         this.oldTransforms.length = 0;
                         for (var i = 0; i < shapes.length; ++i)
                             this.oldTransforms[i] = shapes[i].getTransform().clone();
 
-                        this.moveShapes(shapes, pictureLayer, toolLayer);
+                        toolLayer.addShapes([groupShape]);
                         this.hasFocus = true;
                     }
                     break;
 
                 case TouchState.Move:
                     if (this.hasFocus) {
-                        var groupShape = selection.getSelectGroup();
                         groupShape.getTransform().translate(touch.dx, touch.dy);
-                        groupShape.applyTransformToShapes();
-                        toolLayer.rebuild();
                     }
                     break;
 
                 case TouchState.Up:
                     if (this.hasFocus) {
-                        var shapes = selection.getSelectedShapes();
+                        groupShape.applyTransformToShapes();
+                        pictureLayer.rebuild();
+                        templateLayer.rebuild();
 
+                        var shapes = selection.getSelectedShapes();
                         var moveCommand = new MoveCommand(shapes, this.oldTransforms);
                         page.getCommandList().addCommand(moveCommand);
 
-                        this.moveShapes(shapes, toolLayer, pictureLayer);
+                        toolLayer.removeShapes([groupShape]);
                         this.hasFocus = false;
                     }
                     break;
             }
 
-            if (this.hasFocus || hadFocus)
+            if (this.hasFocus || hadFocus) {
+                toolLayer.rebuild();
                 page.refresh();
+            }
         }
 
         private moveShapes(shapes: Shape[], srcLayer: Layer, destLayer: Layer) {

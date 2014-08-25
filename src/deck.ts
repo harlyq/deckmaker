@@ -184,7 +184,6 @@ module DeckMaker {
 
     //---------------------------------
     export class DeckPage extends Page {
-        deck: Deck;
         deckCtx: CanvasRenderingContext2D;
         deckCanvas: HTMLCanvasElement;
 

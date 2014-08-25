@@ -62,17 +62,26 @@ module DeckMaker {
     export class GroupShape extends Shape {
         private shapes: Shape[] = [];
         private oldTransforms: Transform[] = [];
+        private invGroupTransform: Transform = new Transform();
 
         setShapes(shapes: Shape[]) {
             this.shapes = shapes;
             this.encloseShapes();
         }
 
+        contains(shape: Shape): boolean {
+            return this.shapes.indexOf(shape) !== -1;
+        }
+
         applyTransformToShapes() {
+            var transform = new Transform();
+            var diffTransform = this.getTransform().clone();
+            diffTransform.multiply(this.invGroupTransform);
+
             for (var i = 0; i < this.shapes.length; ++i) {
-                var newTransform = this.oldTransforms[i].clone();
-                newTransform.multiply(this.getTransform());
-                this.shapes[i].getTransform().copy(newTransform);
+                transform.copy(this.oldTransforms[i]);
+                transform.multiply(diffTransform);
+                this.shapes[i].getTransform().copy(transform);
             }
         }
 
@@ -81,16 +90,39 @@ module DeckMaker {
             ctx.strokeStyle = "green";
             ctx.lineWidth = 1;
             ctx.strokeRect(0, 0, this.width, this.height);
+
+            ctx.beginPath();
+            var transform = new Transform();
+
+            for (var i = 0; i < this.shapes.length; ++i) {
+                var shape = this.shapes[i];
+                ctx.save();
+                transform.copy(this.oldTransforms[i]);
+                transform.multiply(this.invGroupTransform);
+                transform.draw(ctx);
+                ctx.rect(0, 0, shape.width, shape.height);
+                ctx.restore();
+            }
+            ctx.stroke();
             ctx.restore();
         }
 
         private encloseShapes() {
-            var minX = -1e10;
-            var minY = -1e10;
-            var maxX = 1e10
-            var maxY = 1e10;
-            this.getTransform().setIdentity();
+            var groupTransform = this.getTransform();
+            groupTransform.setIdentity();
             this.oldTransforms.length = 0;
+
+            if (this.shapes.length === 0) {
+                this.invGroupTransform.setIdentity();
+                this.width = 0;
+                this.height = 0;
+                return;
+            }
+
+            var minX = 1e10;
+            var minY = 1e10;
+            var maxX = -1e10
+            var maxY = -1e10;
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
@@ -108,13 +140,16 @@ module DeckMaker {
 
                 var minX = Math.min(x1, minX);
                 var maxX = Math.max(x2, maxX);
-                var minY = Math.min(y1, minX);
+                var minY = Math.min(y1, minY);
                 var maxY = Math.max(y2, maxY);
             }
 
-            this.getTransform().translate(x1, y1);
-            this.width = x2 - x1;
-            this.height = y2 - y1;
+            groupTransform.translate(minX, minY);
+            this.invGroupTransform.copy(groupTransform);
+            this.invGroupTransform.inverse();
+
+            this.width = maxX - minX;
+            this.height = maxY - minY;
         }
     }
 }

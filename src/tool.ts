@@ -60,8 +60,21 @@ module DeckMaker {
                 case TouchState.Up:
                     if (this.hasFocus) {
                         if (this.x2 !== this.x1 && this.y2 !== this.y1) {
-                            page.getCommandList().addCommand(new LocationCommand(
-                                this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
+                            var w = Math.abs(this.x2 - this.x1);
+                            var h = Math.abs(this.y2 - this.y1);
+                            var x = Math.min(this.x1, this.x2);
+                            var y = Math.min(this.y1, this.y2);
+
+                            var newLocation = new Location(w, h);
+                            newLocation.getTransform().translate(x, y);
+
+                            page.getCommandList().addCommand(new LocationCommand(newLocation));
+
+                            var propertyPanel = getEnv("propertyPanel");
+                            if (propertyPanel)
+                                propertyPanel.setObjects([newLocation], function() {
+                                    page.rebuildLayer(TemplateLayer);
+                                });
                         }
                         this.hasFocus = false;
                         toolLayer.removeTool(this);
@@ -91,13 +104,10 @@ module DeckMaker {
 
     //---------------------------------
     class LocationCommand implements Command {
-        location: Location;
         templateLayer: Layer;
         page: Page;
 
-        constructor(x: number, y: number, w: number, h: number) {
-            this.location = new Location(w, h);
-            this.location.getTransform().translate(x, y);
+        constructor(public location: Location) {
             this.page = getEnv("page");
             this.templateLayer = this.page.getLayer(TemplateLayer);
         }

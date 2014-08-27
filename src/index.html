@@ -26,6 +26,7 @@
     }
     #propertyPanel {
         display: inline-block;
+        vertical-align: top;
     }
     .PropertyPanelElement {
         display: block;
@@ -174,8 +175,13 @@
         document.getElementById("redo").addEventListener("click", clickRedo);
 
         propertyPanel = new PropertyPanel.Panel(document.getElementById('propertyPanel'));
-        propertyPanel.addDefinitionGroup(DeckMaker.TemplateDefinitionGroup);
-        propertyPanel.addEditor(new PropertyPanel.DefaultEditor());
+        propertyPanel.addDefinitionGroup(DeckMaker.transformDefinitionGroup);
+        propertyPanel.addDefinitionGroup(DeckMaker.shapeDefinitionGroup);
+        propertyPanel.addDefinitionGroup(DeckMaker.templateDefinitionGroup);
+        propertyPanel.addDefinitionGroup(DeckMaker.locationDefinitionGroup);
+        propertyPanel.addEditor(new PropertyPanel.StringEditor());
+        propertyPanel.addEditor(new PropertyPanel.ListEditor());
+        propertyPanel.addEditor(new PropertyPanel.ObjectEditor());
 
         var boardPage = new DeckMaker.Page("board");
         board.addPage(boardPage);

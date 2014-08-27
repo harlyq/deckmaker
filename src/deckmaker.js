@@ -1,6 +1,601 @@
+var __extends = this.__extends || function (d, b) {
+    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+    function __() { this.constructor = d; }
+    __.prototype = b.prototype;
+    d.prototype = new __();
+};
+var PropertyPanel;
+(function (PropertyPanel) {
+    var Binding = (function () {
+        function Binding(editor, objects, definition) {
+            this.editor = editor;
+            this.objects = objects;
+            this.definition = definition;
+            this.container = null;
+        }
+        /*
+        * @return {any} the value of the first *object* of this binding
+        */
+        Binding.prototype.getValue = function () {
+            if (this.objects.length > 0)
+                return this.objects[0][this.definition.prop];
+            else
+                return null;
+        };
+
+        Binding.prototype.setValue = function (value) {
+            for (var i = 0; i < this.objects.length; ++i) {
+                this.objects[i][this.definition.prop] = value;
+            }
+        };
+
+        /*
+        * @return {boolean} true, if all *prop* attribute of all *objects* is the same
+        */
+        Binding.prototype.isSameValue = function () {
+            var value = this.getValue();
+            var prop = this.definition.prop;
+            for (var i = 1; i < this.objects.length; ++i) {
+                if (this.objects[i][prop] !== value)
+                    return false;
+            }
+            return true;
+        };
+        return Binding;
+    })();
+    PropertyPanel.Binding = Binding;
+
+    /*
+    * @class Editor
+    * @description provides a base class for describing an editor.
+    *
+    */
+    var Editor = (function () {
+        function Editor() {
+        }
+        Editor.prototype.getEditorType = function () {
+            return '';
+        };
+
+        /*
+        *
+        */
+        Editor.prototype.canHandle = function (value) {
+            return false;
+        };
+
+        /*
+        * If true, the panel will iterate over the sub-properties of this object property.
+        */
+        Editor.prototype.hasSubObjects = function (binding) {
+            return false;
+        };
+
+        /*
+        * The editor should append any relevant HTML to the parent element according to the
+        * property values found in the binding.  Derived classes *must* set the *container*
+        * attribute to the HTML container that is created for this editor.
+        */
+        Editor.prototype.createElement = function (binding) {
+            return null;
+        };
+
+        /*
+        * Called before removal of the editor from the panel. If editor is current editing
+        * (e.g. startEdit() had been called), then stopEdit() will be called before shutdown()
+        */
+        //shutdown(binding: Binding) {}
+        /*
+        * Called when the property value has changed to force the editor to show that new value.
+        */
+        Editor.prototype.refresh = function (binding) {
+        };
+
+        /*
+        * Called when the user starts to edit a property.  The editor should show the controls
+        * necessary for editing this property.
+        */
+        Editor.prototype.startEdit = function (binding, onChange, onInput) {
+        };
+
+        /*
+        * Called after startEdit() to indicate the edit mode has finished.
+        * stopEdit() can be called from within the editor code to indicate that editing is complete.
+        */
+        Editor.prototype.stopEdit = function (binding) {
+        };
+        return Editor;
+    })();
+    PropertyPanel.Editor = Editor;
+
+    var StringEditor = (function (_super) {
+        __extends(StringEditor, _super);
+        function StringEditor() {
+            _super.apply(this, arguments);
+        }
+        StringEditor.prototype.getEditorType = function () {
+            return 'string';
+        };
+
+        StringEditor.prototype.createElement = function (binding) {
+            var textElem = document.createElement('text');
+            var htmlString = (binding.isSameValue() ? binding.getValue() : '----');
+
+            textElem.innerHTML = '<style>' + '  .inputElem {position: fixed}' + '</style>' + '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' + '<span class="PropertyEditorValue">' + htmlString + '</span>';
+
+            return textElem;
+        };
+
+        StringEditor.prototype.canHandle = function (value) {
+            return true;
+        };
+
+        StringEditor.prototype.refresh = function (binding) {
+            var valueElem = binding.container.querySelector('.PropertyEditorValue');
+            if (valueElem === null)
+                return;
+
+            valueElem.innerHTML = (binding.isSameValue() ? binding.getValue() : '----');
+        };
+
+        StringEditor.prototype.startEdit = function (binding, onChange, onInput) {
+            var valueElem = binding.container.querySelector('.PropertyEditorValue');
+            if (valueElem === null)
+                return;
+
+            var rectObject = valueElem.getBoundingClientRect();
+            var value = binding.getValue();
+            var inputElem = document.createElement('input');
+
+            if (!binding.isSameValue())
+                value = '----';
+
+            // place inputElem on top of the valueElem
+            inputElem.classList.add('inputElem');
+            inputElem.classList.add('PropertyEditorEdit');
+            inputElem.style.top = rectObject.top + 'px';
+            inputElem.style.left = rectObject.left + 'px';
+            inputElem.value = value.toString();
+            inputElem.type = 'input';
+
+            inputElem.addEventListener('input', function (e) {
+                if (typeof onInput === 'function')
+                    onInput(binding, e.target.value);
+            });
+
+            var self = this;
+            inputElem.addEventListener('keypress', function (e) {
+                if (e.keyCode === 13) {
+                    if (typeof onChange === 'function')
+                        onChange(binding, inputElem.value);
+
+                    self.stopEdit(binding);
+                }
+            });
+
+            binding.container.appendChild(inputElem);
+
+            inputElem.setSelectionRange(0, inputElem.value.length);
+            inputElem.focus();
+        };
+
+        StringEditor.prototype.stopEdit = function (binding) {
+            var inputElem = binding.container.querySelector('.PropertyEditorEdit');
+            if (inputElem === null)
+                return;
+
+            // if (reason === Reason.Commit) {
+            //     this.onChange(binding, inputElem.value);
+            // }
+            binding.container.removeChild(inputElem);
+        };
+        return StringEditor;
+    })(Editor);
+    PropertyPanel.StringEditor = StringEditor;
+
+    var ObjectEditor = (function (_super) {
+        __extends(ObjectEditor, _super);
+        function ObjectEditor() {
+            _super.apply(this, arguments);
+        }
+        ObjectEditor.prototype.getEditorType = function () {
+            return 'object';
+        };
+
+        ObjectEditor.prototype.createElement = function (binding) {
+            var container = document.createElement('div');
+            container.innerHTML = '<style>' + '    [data-state="closed"]:before { content: "+" }' + '    [data-state="open"]:before { content: "-" }' + '    [data-state="closed"] ~ * { display: none !important }' + '    [data-state="open"] ~ * { padding: 2px 5px !important }' + '</style>' + '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.definition.prop + '</div>';
+
+            container.querySelector('.ObjectEditor').addEventListener('click', this.toggleState);
+
+            return container;
+        };
+
+        ObjectEditor.prototype.toggleState = function (e) {
+            e.preventDefault();
+            var elem = e.target;
+            var isClosed = elem.getAttribute('data-state') === 'closed';
+            elem.setAttribute('data-state', (isClosed ? 'open' : 'closed'));
+        };
+
+        ObjectEditor.prototype.canHandle = function (value) {
+            return value instanceof Object;
+        };
+
+        ObjectEditor.prototype.hasSubObjects = function (binding) {
+            return true;
+        };
+        return ObjectEditor;
+    })(Editor);
+    PropertyPanel.ObjectEditor = ObjectEditor;
+
+    var ListEditor = (function (_super) {
+        __extends(ListEditor, _super);
+        function ListEditor() {
+            _super.apply(this, arguments);
+        }
+        ListEditor.prototype.getEditorType = function () {
+            return 'list';
+        };
+
+        // creates an element for this binding
+        ListEditor.prototype.createElement = function (binding) {
+            var container = document.createElement('div');
+            container.innerHTML = '<style>' + '    .PropertyEditorInputSelect { position: fixed; }' + '</style>' + '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' + '<span class="PropertyEditorValue">----</span>';
+
+            return container;
+        };
+
+        // refreshes the element in binding
+        ListEditor.prototype.refresh = function (binding) {
+            var valueSpan = binding.container.querySelector('.PropertyEditorValue');
+
+            if (!binding.isSameValue()) {
+                valueSpan.innerHTML = "----";
+            } else {
+                var list = binding.definition.getList();
+                var value = binding.getValue();
+
+                for (var name in list) {
+                    if (list[name] === value)
+                        valueSpan.innerHTML = name;
+                }
+            }
+        };
+
+        // edits the element in binding
+        ListEditor.prototype.startEdit = function (binding, onChange) {
+            var valueSpan = binding.container.querySelector('.PropertyEditorValue');
+            var rectObject = valueSpan.getBoundingClientRect();
+
+            var list = binding.definition.getList();
+            var value = binding.getValue();
+            if (!binding.isSameValue())
+                value = "----";
+
+            var inputSelect = document.createElement("select");
+            inputSelect.classList.add("PropertyEditorInputSelect");
+
+            var count = 0;
+            for (var name in list) {
+                var option = document.createElement("option");
+
+                option.setAttribute("value", name);
+                option.innerHTML = name;
+                if (value === list[name])
+                    option.setAttribute("selected", "selected");
+
+                inputSelect.appendChild(option);
+                ++count;
+            }
+            binding.container.appendChild(inputSelect);
+
+            var sizeStr = Math.min(10, count).toString();
+            var self = this;
+
+            inputSelect.style.top = rectObject.top + "px";
+            inputSelect.style.left = rectObject.left + "px";
+            inputSelect.setAttribute("size", sizeStr);
+            inputSelect.setAttribute("expandto", sizeStr);
+            inputSelect.addEventListener("change", function (e) {
+                var list = binding.definition.getList();
+                var value = list[inputSelect.value];
+
+                self.stopEdit(binding);
+
+                onChange(binding, value);
+            });
+
+            inputSelect.focus();
+        };
+
+        // stops editing the element in binding and commits the result
+        ListEditor.prototype.stopEdit = function (binding) {
+            var inputSelect = binding.container.querySelector('.PropertyEditorInputSelect');
+            binding.container.removeChild(inputSelect);
+        };
+        return ListEditor;
+    })(Editor);
+    PropertyPanel.ListEditor = ListEditor;
+})(PropertyPanel || (PropertyPanel = {}));
+///<reference path='propertyeditor.ts'/>
+var PropertyPanel;
+(function (PropertyPanel) {
+    var Panel = (function () {
+        function Panel(parent) {
+            this.parent = parent;
+            this.bindings = [];
+            this.definitionGroups = [];
+            this.editors = [];
+            this.editing = null;
+            this.objects = [];
+            this.lastChild = null;
+            this.commitChanges = true;
+            this.lastChild = parent.lastChild;
+
+            parent.addEventListener('click', this.onClick.bind(this));
+        }
+        Panel.prototype.setObjects = function (objects, onChange, onInput) {
+            if (this.isArrayEqual(objects, this.objects))
+                return this;
+
+            if (typeof onChange === 'function')
+                this.onChange = onChange;
+
+            if (typeof onInput === 'function')
+                this.onInput = onInput;
+
+            this.destroyEditors();
+            this.objects = objects;
+            this.buildEditors(objects, this.parent);
+            return this;
+        };
+
+        Panel.prototype.addEditor = function (editor) {
+            this.editors.push(editor);
+            return this;
+        };
+
+        Panel.prototype.removeEditor = function (editor) {
+            var i = this.editors.indexOf(editor);
+            if (i !== -1)
+                this.editors.splice(i, 1);
+            return this;
+        };
+
+        Panel.prototype.addDefinitionGroup = function (definitionGroup) {
+            this.definitionGroups.push(definitionGroup);
+            return this;
+        };
+
+        Panel.prototype.removeDefintionList = function (definitionGroup) {
+            var i = this.definitionGroups.indexOf(definitionGroup);
+            if (i !== -1)
+                this.definitionGroups.splice(i, 1);
+            return this;
+        };
+
+        Panel.prototype.onClick = function (e) {
+            var elem = e.target;
+            var found = false;
+
+            while (elem && elem instanceof HTMLElement && !found) {
+                found = elem.classList.contains('PropertyPanelElement');
+                if (!found)
+                    elem = elem.parentNode;
+            }
+            if (found)
+                this.startEdit(this.findBinding(elem));
+        };
+
+        Panel.prototype.findBinding = function (container) {
+            for (var i = 0; i < this.bindings.length; ++i) {
+                var binding = this.bindings[i];
+                if (binding.container === container)
+                    return binding;
+            }
+            return null;
+        };
+
+        Panel.prototype.findDefinitionGroup = function (objects) {
+            if (objects.length === 0)
+                return null;
+
+            for (var i = 0; i < this.definitionGroups.length; ++i) {
+                var definitionGroup = this.definitionGroups[i];
+                var supports = true;
+
+                for (var k = 0; supports && k < objects.length; ++k)
+                    supports = definitionGroup.canUse(objects[k]);
+
+                if (supports)
+                    return definitionGroup;
+            }
+
+            return null;
+        };
+
+        Panel.prototype.findEditorByType = function (editorType) {
+            if (!editorType || editorType.length === 0)
+                return null;
+
+            for (var i = this.editors.length - 1; i >= 0; --i) {
+                var editor = this.editors[i];
+                if (typeof editor === editorType)
+                    return editor;
+            }
+
+            return null;
+        };
+
+        Panel.prototype.findEditorByObjects = function (objects, definition) {
+            if (objects.length === 0)
+                return null;
+
+            for (var i = this.editors.length - 1; i >= 0; --i) {
+                var editor = this.editors[i];
+                var supports = true;
+
+                for (var k = 0; supports && k < objects.length; ++k) {
+                    supports = editor.getEditorType() === definition.editorType;
+                    supports = supports || editor.canHandle(objects[k][definition.prop]);
+                }
+
+                if (supports)
+                    return editor;
+            }
+
+            return null;
+        };
+
+        Panel.prototype.editorInput = function (binding, value) {
+            if (binding !== this.editing)
+                return;
+
+            if (typeof this.onInput === 'function') {
+                var event = {
+                    objects: binding.objects.slice(),
+                    prop: binding.definition.prop,
+                    value: value
+                };
+                this.onInput(event);
+            }
+
+            if (this.commitChanges) {
+                binding.setValue(value);
+            }
+        };
+
+        Panel.prototype.editorChange = function (binding, value) {
+            if (binding !== this.editing)
+                return;
+
+            if (typeof this.onChange === 'function') {
+                var event = {
+                    objects: binding.objects.slice(),
+                    prop: binding.definition.prop,
+                    value: value
+                };
+                this.onChange(event);
+            }
+
+            if (this.commitChanges) {
+                binding.setValue(value);
+
+                if (this['editing'] && this.editing['editor'] && typeof this.editing.editor.refresh === 'function')
+                    this.editing.editor.refresh(this.editing);
+            }
+
+            this.editing = null;
+        };
+
+        Panel.prototype.editorCancel = function () {
+            this.editing = null;
+        };
+
+        Panel.prototype.isArrayEqual = function (a, b) {
+            if (a.length !== b.length)
+                return false;
+
+            var isEqual = true;
+            for (var i = 0; isEqual && i < a.length; ++i) {
+                isEqual = a[i] === b[i];
+            }
+            return isEqual;
+        };
+
+        Panel.prototype.startEdit = function (binding) {
+            if (binding.editor !== null && typeof binding.editor === 'object') {
+                if (binding === this.editing)
+                    return;
+
+                this.stopEdit();
+
+                if (typeof binding.editor.startEdit === 'function') {
+                    this.editing = binding;
+                    binding.editor.startEdit(binding, this.editorChange.bind(this), this.editorInput.bind(this));
+                }
+            }
+        };
+
+        Panel.prototype.stopEdit = function () {
+            if (this['editing'] && this.editing['editor']) {
+                if (typeof this.editing.editor.stopEdit === 'function')
+                    this.editing.editor.stopEdit(this.editing);
+
+                if (typeof this.editing.editor.refresh === 'function')
+                    this.editing.editor.refresh(this.editing);
+            }
+            this.editing = null;
+        };
+
+        Panel.prototype.destroyEditors = function () {
+            this.stopEdit();
+
+            // // in reverse, in case a later binding is dependent upon an earlier one
+            // for (var i = this.bindings.length - 1; i >= 0; i--) {
+            //     var editor = this.bindings[i].editor;
+            //     if (editor !== null)
+            //         editor.shutdown();
+            // }
+            this.bindings.length = 0;
+
+            // clean-up any elements added by buildEditors
+            if (typeof this.parent === 'object') {
+                while (this.parent.lastChild != this.lastChild)
+                    this.parent.removeChild(this.parent.lastChild);
+            }
+        };
+
+        Panel.prototype.buildEditors = function (objects, parent) {
+            var definitionGroup = this.findDefinitionGroup(objects);
+            if (definitionGroup === null)
+                return;
+
+            for (var i = 0; i < definitionGroup.definitions.length; ++i) {
+                var definition = definitionGroup.definitions[i];
+                var editor = this.findEditorByType(definition.editorType);
+                if (editor === null)
+                    editor = this.findEditorByObjects(objects, definition);
+
+                if (editor === null)
+                    continue;
+
+                var binding = new PropertyPanel.Binding(editor, objects, definition);
+                var container = editor.createElement(binding);
+                if (container === null)
+                    continue;
+
+                binding.container = container;
+                container.classList.add('PropertyPanelElement');
+                parent.appendChild(container);
+                editor.refresh(binding); // draw the appropriate value
+
+                this.bindings.push(binding);
+
+                if (editor.hasSubObjects(binding)) {
+                    var subObjects = [];
+                    for (var k = 0; k < objects.length; ++k)
+                        subObjects[k] = objects[k][definition.prop];
+
+                    this.buildEditors(subObjects, container);
+                }
+            }
+        };
+        return Panel;
+    })();
+    PropertyPanel.Panel = Panel;
+})(PropertyPanel || (PropertyPanel = {}));
 // Copyright 2014 Reece Elliott
 var DeckMaker;
 (function (DeckMaker) {
+    DeckMaker.extend = function (obj, other) {
+        for (var name in other) {
+            obj[name] = other[name];
+        }
+        return obj;
+    };
+
     var env = {};
 
     function setEnv(key, value) {
@@ -43,6 +638,16 @@ var DeckMaker;
         imageData.data[pixel + 3] = color.a;
     }
     DeckMaker.setImageCol = setImageCol;
+
+    function enumToList(type) {
+        var list = {};
+        for (var name in type) {
+            if (isNaN(parseInt(name)))
+                list[name] = type[name];
+        }
+        return list;
+    }
+    DeckMaker.enumToList = enumToList;
 
     
 
@@ -355,12 +960,6 @@ var DeckMaker;
     DeckMaker.TouchManager = TouchManager;
 })(DeckMaker || (DeckMaker = {}));
 // Copyright 2014 Reece Elliott
-var __extends = this.__extends || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
-    function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
-};
 /// <reference path="_dependencies.ts" />
 var DeckMaker;
 (function (DeckMaker) {
@@ -385,6 +984,32 @@ var DeckMaker;
         return Shape;
     })();
     DeckMaker.Shape = Shape;
+
+    DeckMaker.transformDefinitionGroup = {
+        canUse: function (obj) {
+            return obj instanceof DeckMaker.Transform;
+        },
+        definitions: [
+            {
+                prop: 'tx'
+            }, {
+                prop: 'ty'
+            }]
+    };
+
+    DeckMaker.shapeDefinitionGroup = {
+        canUse: function (obj) {
+            return obj instanceof Shape;
+        },
+        definitions: [
+            {
+                prop: 'width'
+            }, {
+                prop: 'height'
+            }, {
+                prop: 'transform'
+            }]
+    };
 
     //---------------------------------
     var Picture = (function (_super) {
@@ -578,496 +1203,6 @@ var DeckMaker;
     })();
     DeckMaker.SelectList = SelectList;
 })(DeckMaker || (DeckMaker = {}));
-var PropertyPanel;
-(function (PropertyPanel) {
-    var Binding = (function () {
-        function Binding(editor, objects, definition) {
-            this.editor = editor;
-            this.objects = objects;
-            this.definition = definition;
-            this.container = null;
-        }
-        /*
-        * @return {any} the value of the first *object* of this binding
-        */
-        Binding.prototype.getValue = function () {
-            if (this.objects.length > 0)
-                return this.objects[0][this.definition.prop];
-            else
-                return null;
-        };
-
-        Binding.prototype.setValue = function (value) {
-            for (var i = 0; i < this.objects.length; ++i) {
-                this.objects[i][this.definition.prop] = value;
-            }
-        };
-
-        /*
-        * @return {boolean} true, if all *prop* attribute of all *objects* is the same
-        */
-        Binding.prototype.isSameValue = function () {
-            var value = this.getValue();
-            var prop = this.definition.prop;
-            for (var i = 1; i < this.objects.length; ++i) {
-                if (this.objects[i][prop] !== value)
-                    return false;
-            }
-            return true;
-        };
-        return Binding;
-    })();
-    PropertyPanel.Binding = Binding;
-
-    /*
-    * @class Editor
-    * @description provides a base class for describing an editor.
-    *
-    */
-    var Editor = (function () {
-        function Editor() {
-        }
-        /*
-        * Called when the value of the editor changes, e.g. dragging a slider
-        * onInput, is optional and is called by the editor's code.
-        */
-        //onInput: (binding: Binding, value: any) => void;
-        /*
-        * Called from stopEditing() when the editor's value has changed.
-        */
-        //onChange: (binding: Binding, value: any) => void;
-        /*
-        * Called from stopEditing() when the editor's value has not changed.
-        */
-        //onCancel: () => void;
-        /*
-        *
-        */
-        Editor.prototype.canHandle = function (value) {
-            return false;
-        };
-
-        /*
-        * If true, the panel will iterate over the sub-properties of this object property.
-        */
-        Editor.prototype.hasSubObjects = function (binding) {
-            return false;
-        };
-
-        /*
-        * The editor should append any relevant HTML to the parent element according to the
-        * property values found in the binding.  Derived classes *must* set the *container*
-        * attribute to the HTML container that is created for this editor.
-        */
-        Editor.prototype.createElement = function (binding) {
-            return null;
-        };
-
-        /*
-        * Called before removal of the editor from the panel. If editor is current editing
-        * (e.g. startEdit() had been called), then stopEdit() will be called before shutdown()
-        */
-        //shutdown(binding: Binding) {}
-        /*
-        * Called when the property value has changed to force the editor to show that new value.
-        */
-        Editor.prototype.refresh = function (binding) {
-        };
-
-        /*
-        * Called when the user starts to edit a property.  The editor should show the controls
-        * necessary for editing this property.
-        */
-        Editor.prototype.startEdit = function (binding, onChange, onInput) {
-        };
-
-        /*
-        * Called after startEdit() to indicate the edit mode has finished.
-        * stopEdit() can be called from within the editor code to indicate that editing is complete.
-        */
-        Editor.prototype.stopEdit = function (binding) {
-        };
-        return Editor;
-    })();
-    PropertyPanel.Editor = Editor;
-
-    var DefaultEditor = (function (_super) {
-        __extends(DefaultEditor, _super);
-        function DefaultEditor() {
-            _super.apply(this, arguments);
-        }
-        DefaultEditor.prototype.createElement = function (binding) {
-            var textElem = document.createElement('text');
-            var htmlString = (binding.isSameValue() ? binding.getValue() : '----');
-
-            textElem.innerHTML = '<style>' + '  .inputElem {position: fixed}' + '</style>' + '<span class="PropertyEditorName">' + binding.definition.prop + ': </span>' + '<span class="PropertyEditorValue">' + htmlString + '</span>';
-
-            return textElem;
-        };
-
-        DefaultEditor.prototype.canHandle = function (value) {
-            return true;
-        };
-
-        DefaultEditor.prototype.refresh = function (binding) {
-            var valueElem = binding.container.querySelector('.PropertyEditorValue');
-            if (valueElem === null)
-                return;
-
-            valueElem.innerHTML = (binding.isSameValue() ? binding.getValue() : '----');
-        };
-
-        DefaultEditor.prototype.startEdit = function (binding, onChange, onInput) {
-            var valueElem = binding.container.querySelector('.PropertyEditorValue');
-            if (valueElem === null)
-                return;
-
-            var rectObject = valueElem.getBoundingClientRect();
-            var value = binding.getValue();
-            var inputElem = document.createElement('input');
-
-            if (!binding.isSameValue())
-                value = '----';
-
-            // place inputElem on top of the valueElem
-            inputElem.classList.add('inputElem');
-            inputElem.classList.add('PropertyEditorEdit');
-            inputElem.style.top = rectObject.top + 'px';
-            inputElem.style.left = rectObject.left + 'px';
-            inputElem.value = value.toString();
-            inputElem.type = 'input';
-
-            inputElem.addEventListener('input', function (e) {
-                if (typeof onInput === 'function')
-                    onInput(binding, e.target.value);
-            });
-
-            var self = this;
-            inputElem.addEventListener('keypress', function (e) {
-                if (e.keyCode === 13) {
-                    if (typeof onChange === 'function')
-                        onChange(binding, inputElem.value);
-
-                    self.stopEdit(binding);
-                }
-            });
-
-            binding.container.appendChild(inputElem);
-
-            inputElem.setSelectionRange(0, inputElem.value.length);
-            inputElem.focus();
-        };
-
-        DefaultEditor.prototype.stopEdit = function (binding) {
-            var inputElem = binding.container.querySelector('.PropertyEditorEdit');
-            if (inputElem === null)
-                return;
-
-            // if (reason === Reason.Commit) {
-            //     this.onChange(binding, inputElem.value);
-            // }
-            binding.container.removeChild(inputElem);
-        };
-        return DefaultEditor;
-    })(Editor);
-    PropertyPanel.DefaultEditor = DefaultEditor;
-
-    var ObjectEditor = (function (_super) {
-        __extends(ObjectEditor, _super);
-        function ObjectEditor() {
-            _super.apply(this, arguments);
-        }
-        ObjectEditor.prototype.createElement = function (binding) {
-            var container = document.createElement('div');
-            container.innerHTML = '<style>' + '    [data-state="closed"]:before { content: "+" }' + '    [data-state="open"]:before { content: "-" }' + '    [data-state="closed"] ~ * { display: none !important }' + '    [data-state="open"] ~ * { padding: 2px 5px !important }' + '</style>' + '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.definition.prop + '</div>';
-
-            container.querySelector('.ObjectEditor').addEventListener('click', this.toggleState);
-
-            return container;
-        };
-
-        ObjectEditor.prototype.toggleState = function (e) {
-            e.preventDefault();
-            var elem = e.target;
-            var isClosed = elem.getAttribute('data-state') === 'closed';
-            elem.setAttribute('data-state', (isClosed ? 'open' : 'closed'));
-        };
-
-        ObjectEditor.prototype.canHandle = function (value) {
-            return value instanceof Object;
-        };
-
-        ObjectEditor.prototype.hasSubObjects = function (binding) {
-            return true;
-        };
-        return ObjectEditor;
-    })(Editor);
-    PropertyPanel.ObjectEditor = ObjectEditor;
-})(PropertyPanel || (PropertyPanel = {}));
-///<reference path='propertyeditor.ts'/>
-var PropertyPanel;
-(function (PropertyPanel) {
-    var Panel = (function () {
-        function Panel(parent) {
-            this.parent = parent;
-            this.bindings = [];
-            this.definitionGroups = [];
-            this.editors = [];
-            this.editing = null;
-            this.objects = [];
-            this.lastChild = null;
-            this.commitChanges = true;
-            this.lastChild = parent.lastChild;
-
-            parent.addEventListener('click', this.onClick.bind(this));
-        }
-        Panel.prototype.setObjects = function (objects, onChange, onInput) {
-            if (this.isArrayEqual(objects, this.objects))
-                return this;
-
-            if (typeof onChange === 'function')
-                this.onChange = onChange;
-
-            if (typeof onInput === 'function')
-                this.onInput = onInput;
-
-            this.destroyEditors();
-            this.objects = objects;
-            this.buildEditors(objects, this.parent);
-            return this;
-        };
-
-        Panel.prototype.addEditor = function (editor) {
-            this.editors.push(editor);
-            return this;
-        };
-
-        Panel.prototype.removeEditor = function (editor) {
-            var i = this.editors.indexOf(editor);
-            if (i !== -1)
-                this.editors.splice(i, 1);
-            return this;
-        };
-
-        Panel.prototype.addDefinitionGroup = function (definitionGroup) {
-            this.definitionGroups.push(definitionGroup);
-            return this;
-        };
-
-        Panel.prototype.removeDefintionList = function (definitionGroup) {
-            var i = this.definitionGroups.indexOf(definitionGroup);
-            if (i !== -1)
-                this.definitionGroups.splice(i, 1);
-            return this;
-        };
-
-        Panel.prototype.onClick = function (e) {
-            var elem = e.target;
-            var found = false;
-
-            while (elem && elem instanceof HTMLElement && !found) {
-                found = elem.classList.contains('PropertyPanelElement');
-                if (!found)
-                    elem = elem.parentNode;
-            }
-            if (found)
-                this.startEdit(this.findBinding(elem));
-        };
-
-        Panel.prototype.findBinding = function (container) {
-            for (var i = 0; i < this.bindings.length; ++i) {
-                var binding = this.bindings[i];
-                if (binding.container === container)
-                    return binding;
-            }
-            return null;
-        };
-
-        Panel.prototype.findDefinitionGroup = function (objects) {
-            if (objects.length === 0)
-                return null;
-
-            for (var i = 0; i < this.definitionGroups.length; ++i) {
-                var definitionGroup = this.definitionGroups[i];
-                var supports = true;
-
-                for (var k = 0; supports && k < objects.length; ++k)
-                    supports = definitionGroup.canUse(objects[k]);
-
-                if (supports)
-                    return definitionGroup;
-            }
-
-            return null;
-        };
-
-        Panel.prototype.findEditorByType = function (editorType) {
-            if (!editorType || editorType.length === 0)
-                return null;
-
-            for (var i = this.editors.length - 1; i >= 0; --i) {
-                var editor = this.editors[i];
-                if (typeof editor === editorType)
-                    return editor;
-            }
-
-            return null;
-        };
-
-        Panel.prototype.findEditorByObjects = function (objects, prop) {
-            if (objects.length === 0)
-                return null;
-
-            for (var i = this.editors.length - 1; i >= 0; --i) {
-                var editor = this.editors[i];
-                var supports = true;
-
-                for (var k = 0; supports && k < objects.length; ++k)
-                    supports = editor.canHandle(objects[k][prop]);
-
-                if (supports)
-                    return editor;
-            }
-
-            return null;
-        };
-
-        Panel.prototype.editorInput = function (binding, value) {
-            if (binding !== this.editing)
-                return;
-
-            if (typeof this.onInput === 'function') {
-                var event = {
-                    objects: binding.objects.slice(),
-                    prop: binding.definition.prop,
-                    value: value
-                };
-                this.onInput(event);
-            }
-
-            if (this.commitChanges) {
-                binding.setValue(value);
-            }
-        };
-
-        Panel.prototype.editorChange = function (binding, value) {
-            if (binding !== this.editing)
-                return;
-
-            if (typeof this.onChange === 'function') {
-                var event = {
-                    objects: binding.objects.slice(),
-                    prop: binding.definition.prop,
-                    value: value
-                };
-                this.onChange(event);
-            }
-
-            if (this.commitChanges) {
-                binding.setValue(value);
-
-                if (this['editing'] && this.editing['editor'] && typeof this.editing.editor.refresh === 'function')
-                    this.editing.editor.refresh(this.editing);
-            }
-
-            this.editing = null;
-        };
-
-        Panel.prototype.editorCancel = function () {
-            this.editing = null;
-        };
-
-        Panel.prototype.isArrayEqual = function (a, b) {
-            if (a.length !== b.length)
-                return false;
-
-            var isEqual = true;
-            for (var i = 0; isEqual && i < a.length; ++i) {
-                isEqual = a[i] === b[i];
-            }
-            return isEqual;
-        };
-
-        Panel.prototype.startEdit = function (binding) {
-            if (binding.editor !== null && typeof binding.editor === 'object') {
-                if (binding === this.editing)
-                    return;
-
-                this.stopEdit();
-
-                if (typeof binding.editor.startEdit === 'function') {
-                    this.editing = binding;
-                    binding.editor.startEdit(binding, this.editorChange.bind(this), this.editorInput.bind(this));
-                }
-            }
-        };
-
-        Panel.prototype.stopEdit = function () {
-            if (this['editing'] && this.editing['editor']) {
-                if (typeof this.editing.editor.stopEdit === 'function')
-                    this.editing.editor.stopEdit(this.editing);
-
-                if (typeof this.editing.editor.refresh === 'function')
-                    this.editing.editor.refresh(this.editing);
-            }
-            this.editing = null;
-        };
-
-        Panel.prototype.destroyEditors = function () {
-            this.stopEdit();
-
-            // // in reverse, in case a later binding is dependent upon an earlier one
-            // for (var i = this.bindings.length - 1; i >= 0; i--) {
-            //     var editor = this.bindings[i].editor;
-            //     if (editor !== null)
-            //         editor.shutdown();
-            // }
-            this.bindings.length = 0;
-
-            // clean-up any elements added by buildEditors
-            if (typeof this.parent === 'object') {
-                while (this.parent.lastChild != this.lastChild)
-                    this.parent.removeChild(this.parent.lastChild);
-            }
-        };
-
-        Panel.prototype.buildEditors = function (objects, parent) {
-            var definitionGroup = this.findDefinitionGroup(objects);
-            if (definitionGroup === null)
-                return;
-
-            for (var i = 0; i < definitionGroup.definitions.length; ++i) {
-                var definition = definitionGroup.definitions[i];
-                var editor = this.findEditorByType(definition.editorType);
-                if (editor === null)
-                    editor = this.findEditorByObjects(objects, definition.prop);
-
-                if (editor === null)
-                    continue;
-
-                var binding = new PropertyPanel.Binding(editor, objects, definition);
-                var container = editor.createElement(binding);
-                if (container === null)
-                    continue;
-
-                binding.container = container;
-                container.classList.add('PropertyPanelElement');
-                parent.appendChild(container);
-                this.bindings.push(binding);
-
-                if (editor.hasSubObjects(binding)) {
-                    var subObjects = [];
-                    for (var k = 0; k < objects.length; ++k)
-                        subObjects[k] = objects[k][definition.prop];
-
-                    this.buildEditors(subObjects, container);
-                }
-            }
-        };
-        return Panel;
-    })();
-    PropertyPanel.Panel = Panel;
-})(PropertyPanel || (PropertyPanel = {}));
 // Copyright 2014 Reece Elliott
 /// <reference path="_dependencies.ts" />
 var DeckMaker;
@@ -1370,58 +1505,11 @@ var DeckMaker;
         return Card;
     })(DeckMaker.Shape);
     DeckMaker.Card = Card;
-
-    //---------------------------------
-    var Location = (function (_super) {
-        __extends(Location, _super);
-        function Location(width, height) {
-            _super.call(this);
-            this.width = width;
-            this.height = height;
-        }
-        Location.prototype.addCard = function (card) {
-            if (card.location) {
-                if (card.location === this)
-                    return;
-
-                card.location.removeCard(card);
-            }
-
-            card.location = this;
-            this.cards.push(card);
-        };
-
-        Location.prototype.removeCard = function (card) {
-            var i = this.cards.indexOf(card);
-            if (i !== -1) {
-                this.cards.splice(i, 1);
-                card.location = null;
-            }
-        };
-
-        Location.prototype.addCards = function (cards) {
-            for (var i = 0; i < cards.length; ++i)
-                this.addCard(cards[i]);
-        };
-
-        Location.prototype.removeCards = function (cards) {
-            for (var i = 0; i < cards.length; ++i)
-                this.removeCard(cards[i]);
-        };
-
-        Location.prototype.draw = function (ctx) {
-            ctx.save();
-            ctx.strokeRect(0, 0, this.width, this.height);
-
-            for (var i = 0; i < this.cards.length; ++i)
-                this.cards[i].draw(ctx);
-
-            ctx.restore();
-        };
-        return Location;
-    })(DeckMaker.Shape);
-    DeckMaker.Location = Location;
-
+})(DeckMaker || (DeckMaker = {}));
+// Copyright 2014 Reece Elliott
+/// <reference path="_dependencies.ts" />
+var DeckMaker;
+(function (DeckMaker) {
     //---------------------------------
     var Template = (function (_super) {
         __extends(Template, _super);
@@ -1515,7 +1603,7 @@ var DeckMaker;
     DeckMaker.Template = Template;
 
     //---------------------------------
-    DeckMaker.TemplateDefinitionGroup = {
+    DeckMaker.templateDefinitionGroup = {
         canUse: function (obj) {
             return obj instanceof Template;
         },
@@ -1526,7 +1614,94 @@ var DeckMaker;
                 prop: 'numCards'
             }]
     };
+})(DeckMaker || (DeckMaker = {}));
+// Copyright 2014 Reece Elliott
+/// <reference path="_dependencies.ts" />
+var DeckMaker;
+(function (DeckMaker) {
+    //---------------------------------
+    (function (LayoutType) {
+        LayoutType[LayoutType["Stack"] = 0] = "Stack";
+        LayoutType[LayoutType["FanHorizontal"] = 1] = "FanHorizontal";
+        LayoutType[LayoutType["FanVertical"] = 2] = "FanVertical";
+        LayoutType[LayoutType["Grid"] = 3] = "Grid";
+        LayoutType[LayoutType["Row"] = 4] = "Row";
+        LayoutType[LayoutType["Column"] = 5] = "Column";
+    })(DeckMaker.LayoutType || (DeckMaker.LayoutType = {}));
+    var LayoutType = DeckMaker.LayoutType;
 
+    //---------------------------------
+    var Location = (function (_super) {
+        __extends(Location, _super);
+        function Location(width, height) {
+            _super.call(this);
+            this.cards = [];
+            this.layout = 0 /* Stack */;
+            this.width = width;
+            this.height = height;
+        }
+        Location.prototype.addCard = function (card) {
+            if (card.location) {
+                if (card.location === this)
+                    return;
+
+                card.location.removeCard(card);
+            }
+
+            card.location = this;
+            this.cards.push(card);
+        };
+
+        Location.prototype.removeCard = function (card) {
+            var i = this.cards.indexOf(card);
+            if (i !== -1) {
+                this.cards.splice(i, 1);
+                card.location = null;
+            }
+        };
+
+        Location.prototype.addCards = function (cards) {
+            for (var i = 0; i < cards.length; ++i)
+                this.addCard(cards[i]);
+        };
+
+        Location.prototype.removeCards = function (cards) {
+            for (var i = 0; i < cards.length; ++i)
+                this.removeCard(cards[i]);
+        };
+
+        Location.prototype.draw = function (ctx) {
+            ctx.save();
+            ctx.strokeRect(0, 0, this.width, this.height);
+
+            for (var i = 0; i < this.cards.length; ++i)
+                this.cards[i].draw(ctx);
+
+            ctx.restore();
+        };
+        return Location;
+    })(DeckMaker.Shape);
+    DeckMaker.Location = Location;
+
+    //---------------------------------
+    DeckMaker.locationDefinitionGroup = {
+        canUse: function (obj) {
+            return obj instanceof Location;
+        },
+        definitions: [{
+                prop: 'layout',
+                editorType: 'list',
+                getList: function () {
+                    return DeckMaker.enumToList(LayoutType);
+                }
+            }]
+    };
+    DeckMaker.extend(DeckMaker.locationDefinitionGroup, DeckMaker.shapeDefinitionGroup);
+})(DeckMaker || (DeckMaker = {}));
+// Copyright 2014 Reece Elliott
+/// <reference path="_dependencies.ts" />
+var DeckMaker;
+(function (DeckMaker) {
     //---------------------------------
     var Deck = (function () {
         function Deck(name) {
@@ -1568,7 +1743,7 @@ var DeckMaker;
             for (var i = 0; i < this.templates.length; ++i) {
                 var template = this.templates[i];
                 for (var j = 0; j < template.numCards; ++j)
-                    cards.push(new Card(this.cardWidth, this.cardHeight, template));
+                    cards.push(new DeckMaker.Card(this.cardWidth, this.cardHeight, template));
             }
             return cards;
         };
@@ -1618,7 +1793,11 @@ var DeckMaker;
         return Deck;
     })();
     DeckMaker.Deck = Deck;
-
+})(DeckMaker || (DeckMaker = {}));
+// Copyright 2014 Reece Elliott
+/// <reference path="_dependencies.ts" />
+var DeckMaker;
+(function (DeckMaker) {
     //---------------------------------
     var DeckPage = (function (_super) {
         __extends(DeckPage, _super);
@@ -1722,7 +1901,21 @@ var DeckMaker;
                 case 2 /* Up */:
                     if (this.hasFocus) {
                         if (this.x2 !== this.x1 && this.y2 !== this.y1) {
-                            page.getCommandList().addCommand(new LocationCommand(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1));
+                            var w = Math.abs(this.x2 - this.x1);
+                            var h = Math.abs(this.y2 - this.y1);
+                            var x = Math.min(this.x1, this.x2);
+                            var y = Math.min(this.y1, this.y2);
+
+                            var newLocation = new DeckMaker.Location(w, h);
+                            newLocation.getTransform().translate(x, y);
+
+                            page.getCommandList().addCommand(new LocationCommand(newLocation));
+
+                            var propertyPanel = DeckMaker.getEnv("propertyPanel");
+                            if (propertyPanel)
+                                propertyPanel.setObjects([newLocation], function () {
+                                    page.rebuildLayer(DeckMaker.TemplateLayer);
+                                });
                         }
                         this.hasFocus = false;
                         toolLayer.removeTool(this);
@@ -1754,9 +1947,8 @@ var DeckMaker;
 
     //---------------------------------
     var LocationCommand = (function () {
-        function LocationCommand(x, y, w, h) {
-            this.location = new DeckMaker.Location(w, h);
-            this.location.getTransform().translate(x, y);
+        function LocationCommand(location) {
+            this.location = location;
             this.page = DeckMaker.getEnv("page");
             this.templateLayer = this.page.getLayer(DeckMaker.TemplateLayer);
         }
@@ -2274,16 +2466,20 @@ var DeckMaker;
     })();
     DeckMaker.Board = Board;
 })(DeckMaker || (DeckMaker = {}));
+/// <reference path="propertyeditor.ts" />
+/// <reference path="propertypanel.ts" />
 /// <reference path="system.ts" />
 /// <reference path="touch.ts" />
 /// <reference path="shape.ts" />
 /// <reference path="select.ts" />
-/// <reference path="propertyeditor.ts" />
-/// <reference path="propertypanel.ts" />
 /// <reference path="command.ts" />
 /// <reference path="layer.ts" />
 /// <reference path="page.ts" />
+/// <reference path="card.ts" />
+/// <reference path="template.ts" />
+/// <reference path="location.ts" />
 /// <reference path="deck.ts" />
+/// <reference path="deckpage.ts" />
 /// <reference path="tool.ts" />
 /// <reference path="board.ts" />
 /// <reference path="_dependencies.ts" />

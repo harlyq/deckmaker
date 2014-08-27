@@ -22,6 +22,32 @@ module DeckMaker {
         }
     }
 
+    export
+    var transformDefinitionGroup: PropertyPanel.DefinitionGroup = {
+        canUse: obj => {
+            return obj instanceof Transform;
+        },
+        definitions: [{
+            prop: 'tx'
+        }, {
+            prop: 'ty'
+        }]
+    }
+
+    export
+    var shapeDefinitionGroup: PropertyPanel.DefinitionGroup = {
+        canUse: obj => {
+            return obj instanceof Shape;
+        },
+        definitions: [{
+            prop: 'width'
+        }, {
+            prop: 'height'
+        }, {
+            prop: 'transform'
+        }]
+    }
+
     //---------------------------------
     export class Picture extends Shape {
         private image = new Image();

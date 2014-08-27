@@ -2,6 +2,14 @@
 
 module DeckMaker {
 
+    export
+    var extend = function(obj: any, other: any) {
+        for (var name in other) {
+            obj[name] = other[name];
+        }
+        return obj;
+    }
+
     var env: {
         [key: string]: any
     } = {};
@@ -55,6 +63,17 @@ module DeckMaker {
         imageData.data[pixel + 1] = color.g;
         imageData.data[pixel + 2] = color.b;
         imageData.data[pixel + 3] = color.a;
+    }
+
+    export
+
+    function enumToList(type: any): any {
+        var list = {};
+        for (var name in type) {
+            if (isNaN(parseInt(name)))
+                list[name] = type[name];
+        }
+        return list;
     }
 
     // note: change() must modify the pixel, such that match() for that pixel will be false

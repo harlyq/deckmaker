@@ -131,23 +131,19 @@ module PropertyPanel {
             return null;
         }
 
-        private findEditorByObjects(objects: any[], prop: string): Editor {
+        private findEditorByObjects(objects: any[], definition: Definition): Editor {
             if (objects.length === 0)
                 return null;
-
-            // var editorType = definition.editorType;
-            // if (typeof editorType === 'undefined') {
-            //     // how does this work with polymorphic types?
-            //     editorType = typeof objects[0][definition.prop];
-            // }
 
             // work backwards, as the editors added last are the most specific
             for (var i = this.editors.length - 1; i >= 0; --i) {
                 var editor = this.editors[i];
                 var supports = true;
 
-                for (var k = 0; supports && k < objects.length; ++k)
-                    supports = editor.canHandle(objects[k][prop])
+                for (var k = 0; supports && k < objects.length; ++k) {
+                    supports = editor.getEditorType() === definition.editorType;
+                    supports = supports || editor.canHandle(objects[k][definition.prop])
+                }
 
                 if (supports)
                     return editor;
@@ -265,7 +261,7 @@ module PropertyPanel {
                 var definition = definitionGroup.definitions[i];
                 var editor = this.findEditorByType(definition.editorType);
                 if (editor === null)
-                    editor = this.findEditorByObjects(objects, definition.prop);
+                    editor = this.findEditorByObjects(objects, definition);
 
                 if (editor === null)
                     continue;
@@ -278,6 +274,8 @@ module PropertyPanel {
                 binding.container = container;
                 container.classList.add('PropertyPanelElement');
                 parent.appendChild(container);
+                editor.refresh(binding); // draw the appropriate value
+
                 this.bindings.push(binding);
 
                 if (editor.hasSubObjects(binding)) {

@@ -11,6 +11,13 @@ module PropertyPanel {
          * of the property.
          */
         editorType ? : string;
+
+        /*
+         * if the editorType === 'list', this returns the list
+         */
+        getList ? : () => {
+            [key: string]: any
+        };
     }
 
     export class Binding {
@@ -54,21 +61,9 @@ module PropertyPanel {
      *
      */
     export class Editor {
-        /*
-         * Called when the value of the editor changes, e.g. dragging a slider
-         * onInput, is optional and is called by the editor's code.
-         */
-        //onInput: (binding: Binding, value: any) => void;
-
-        /*
-         * Called from stopEditing() when the editor's value has changed.
-         */
-        //onChange: (binding: Binding, value: any) => void;
-
-        /*
-         * Called from stopEditing() when the editor's value has not changed.
-         */
-        //onCancel: () => void;
+        getEditorType(): string {
+            return '';
+        }
 
         /*
          *
@@ -120,7 +115,11 @@ module PropertyPanel {
 
     }
 
-    export class DefaultEditor extends Editor {
+    export class StringEditor extends Editor {
+        getEditorType(): string {
+            return 'string';
+        }
+
         createElement(binding: Binding): HTMLElement {
             var textElem = document.createElement('text');
             var htmlString = (binding.isSameValue() ? binding.getValue() : '----');
@@ -129,7 +128,7 @@ module PropertyPanel {
                 '<style>' +
                 '  .inputElem {position: fixed}' +
                 '</style>' +
-                '<span class="PropertyEditorName">' + binding.definition.prop + ': </span>' +
+                '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' +
                 '<span class="PropertyEditorValue">' + htmlString + '</span>';
 
             return textElem;
@@ -206,6 +205,10 @@ module PropertyPanel {
     }
 
     export class ObjectEditor extends Editor {
+        getEditorType(): string {
+            return 'object';
+        }
+
         createElement(binding: Binding): HTMLElement {
             var container = document.createElement('div');
             container.innerHTML =
@@ -235,6 +238,94 @@ module PropertyPanel {
 
         hasSubObjects(binding: Binding): boolean {
             return true;
+        }
+    }
+
+    export class ListEditor extends Editor {
+        getEditorType(): string {
+            return 'list';
+        }
+
+        // creates an element for this binding
+        createElement(binding: Binding): HTMLElement {
+            var container = document.createElement('div');
+            container.innerHTML =
+                '<style>' +
+                '    .PropertyEditorInputSelect { position: fixed; }' +
+                '</style>' +
+                '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' +
+                '<span class="PropertyEditorValue">----</span>';
+
+            return container;
+        }
+
+        // refreshes the element in binding
+        refresh(binding: Binding) {
+            var valueSpan = < HTMLElement > binding.container.querySelector('.PropertyEditorValue');
+
+            if (!binding.isSameValue()) {
+                valueSpan.innerHTML = "----";
+            } else {
+                var list = binding.definition.getList();
+                var value = binding.getValue();
+
+                for (var name in list) {
+                    if (list[name] === value)
+                        valueSpan.innerHTML = name;
+                }
+            }
+        }
+
+        // edits the element in binding
+        startEdit(binding: Binding, onChange: (binding: Binding, value: any) => void) {
+            var valueSpan = < HTMLElement > binding.container.querySelector('.PropertyEditorValue');
+            var rectObject = valueSpan.getBoundingClientRect();
+
+            var list = binding.definition.getList();
+            var value = binding.getValue();
+            if (!binding.isSameValue())
+                value = "----";
+
+            var inputSelect = document.createElement("select");
+            inputSelect.classList.add("PropertyEditorInputSelect");
+
+            var count = 0;
+            for (var name in list) {
+                var option = document.createElement("option");
+
+                option.setAttribute("value", name);
+                option.innerHTML = name;
+                if (value === list[name])
+                    option.setAttribute("selected", "selected");
+
+                inputSelect.appendChild(option);
+                ++count;
+            }
+            binding.container.appendChild(inputSelect);
+
+            var sizeStr: string = Math.min(10, count).toString();
+            var self = this;
+
+            inputSelect.style.top = rectObject.top + "px";
+            inputSelect.style.left = rectObject.left + "px";
+            inputSelect.setAttribute("size", sizeStr);
+            inputSelect.setAttribute("expandto", sizeStr);
+            inputSelect.addEventListener("change", function(e) {
+                var list = binding.definition.getList();
+                var value = list[inputSelect.value];
+
+                self.stopEdit(binding);
+
+                onChange(binding, value);
+            });
+
+            inputSelect.focus();
+        }
+
+        // stops editing the element in binding and commits the result
+        stopEdit(binding: Binding) {
+            var inputSelect = binding.container.querySelector('.PropertyEditorInputSelect');
+            binding.container.removeChild(inputSelect);
         }
     }
 }

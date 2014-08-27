@@ -106,11 +106,10 @@ module DeckMaker {
             return obj instanceof Template;
         },
 
-        definitions: [{
-            prop: 'isBack'
-        }, {
-            prop: 'numCards'
-        }]
+        definitions: {
+            isBack: {},
+            numCards: {}
+        }
     };
 
 }

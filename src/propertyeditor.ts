@@ -2,11 +2,6 @@ module PropertyPanel {
 
     export interface Definition {
         /*
-         * name of the property to appear in the property panel
-         */
-        prop: string;
-
-        /*
          * the type of editor to use.  if not set, 'typeof' will be used to discern the type
          * of the property.
          */
@@ -23,21 +18,21 @@ module PropertyPanel {
     export class Binding {
         container: HTMLElement = null;
 
-        constructor(public editor: Editor, public objects: any[], public definition: Definition) {}
+        constructor(public editor: Editor, public objects: any[], public prop: string, public definition: Definition) {}
 
         /*
          * @return {any} the value of the first *object* of this binding
          */
         getValue(): any {
             if (this.objects.length > 0)
-                return this.objects[0][this.definition.prop];
+                return this.objects[0][this.prop];
             else
                 return null;
         }
 
         setValue(value: any) {
             for (var i = 0; i < this.objects.length; ++i) {
-                this.objects[i][this.definition.prop] = value;
+                this.objects[i][this.prop] = value;
             }
         }
 
@@ -46,7 +41,7 @@ module PropertyPanel {
          */
         isSameValue(): any {
             var value = this.getValue();
-            var prop = this.definition.prop;
+            var prop = this.prop;
             for (var i = 1; i < this.objects.length; ++i) {
                 if (this.objects[i][prop] !== value)
                     return false;
@@ -128,7 +123,7 @@ module PropertyPanel {
                 '<style>' +
                 '  .inputElem {position: fixed}' +
                 '</style>' +
-                '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' +
+                '<span class="PropertyEditorName">' + binding.prop + '</span>: ' +
                 '<span class="PropertyEditorValue">' + htmlString + '</span>';
 
             return textElem;
@@ -218,7 +213,7 @@ module PropertyPanel {
                 '    [data-state="closed"] ~ * { display: none !important }' +
                 '    [data-state="open"] ~ * { padding: 2px 5px !important }' +
                 '</style>' +
-                '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.definition.prop + '</div>';
+                '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.prop + '</div>';
 
             container.querySelector('.ObjectEditor').addEventListener('click', this.toggleState);
 
@@ -253,7 +248,7 @@ module PropertyPanel {
                 '<style>' +
                 '    .PropertyEditorInputSelect { position: fixed; }' +
                 '</style>' +
-                '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' +
+                '<span class="PropertyEditorName">' + binding.prop + '</span>: ' +
                 '<span class="PropertyEditorValue">----</span>';
 
             return container;

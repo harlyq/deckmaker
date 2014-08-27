@@ -27,11 +27,10 @@ module DeckMaker {
         canUse: obj => {
             return obj instanceof Transform;
         },
-        definitions: [{
-            prop: 'tx'
-        }, {
-            prop: 'ty'
-        }]
+        definitions: {
+            tx: {},
+            ty: {}
+        }
     }
 
     export
@@ -39,13 +38,11 @@ module DeckMaker {
         canUse: obj => {
             return obj instanceof Shape;
         },
-        definitions: [{
-            prop: 'width'
-        }, {
-            prop: 'height'
-        }, {
-            prop: 'transform'
-        }]
+        definitions: {
+            width: {},
+            height: {},
+            transform: {}
+        }
     }
 
     //---------------------------------

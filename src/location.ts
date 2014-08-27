@@ -66,16 +66,17 @@ module DeckMaker {
         canUse: obj => {
             return obj instanceof Location;
         },
-        definitions: [{
-            prop: 'layout',
-            editorType: 'list',
-            getList: function(): {
-                [key: string]: any
-            } {
-                return enumToList(LayoutType);
+        definitions: {
+            layout: {
+                editorType: 'list',
+                getList: function(): {
+                    [key: string]: any
+                } {
+                    return enumToList(LayoutType);
+                }
             }
-        }]
+        }
     }
-    extend(locationDefinitionGroup, shapeDefinitionGroup);
+    extend(locationDefinitionGroup.definitions, shapeDefinitionGroup.definitions);
 
 }

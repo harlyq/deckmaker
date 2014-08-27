@@ -7,9 +7,10 @@ var __extends = this.__extends || function (d, b) {
 var PropertyPanel;
 (function (PropertyPanel) {
     var Binding = (function () {
-        function Binding(editor, objects, definition) {
+        function Binding(editor, objects, prop, definition) {
             this.editor = editor;
             this.objects = objects;
+            this.prop = prop;
             this.definition = definition;
             this.container = null;
         }
@@ -18,14 +19,14 @@ var PropertyPanel;
         */
         Binding.prototype.getValue = function () {
             if (this.objects.length > 0)
-                return this.objects[0][this.definition.prop];
+                return this.objects[0][this.prop];
             else
                 return null;
         };
 
         Binding.prototype.setValue = function (value) {
             for (var i = 0; i < this.objects.length; ++i) {
-                this.objects[i][this.definition.prop] = value;
+                this.objects[i][this.prop] = value;
             }
         };
 
@@ -34,7 +35,7 @@ var PropertyPanel;
         */
         Binding.prototype.isSameValue = function () {
             var value = this.getValue();
-            var prop = this.definition.prop;
+            var prop = this.prop;
             for (var i = 1; i < this.objects.length; ++i) {
                 if (this.objects[i][prop] !== value)
                     return false;
@@ -121,7 +122,7 @@ var PropertyPanel;
             var textElem = document.createElement('text');
             var htmlString = (binding.isSameValue() ? binding.getValue() : '----');
 
-            textElem.innerHTML = '<style>' + '  .inputElem {position: fixed}' + '</style>' + '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' + '<span class="PropertyEditorValue">' + htmlString + '</span>';
+            textElem.innerHTML = '<style>' + '  .inputElem {position: fixed}' + '</style>' + '<span class="PropertyEditorName">' + binding.prop + '</span>: ' + '<span class="PropertyEditorValue">' + htmlString + '</span>';
 
             return textElem;
         };
@@ -204,7 +205,7 @@ var PropertyPanel;
 
         ObjectEditor.prototype.createElement = function (binding) {
             var container = document.createElement('div');
-            container.innerHTML = '<style>' + '    [data-state="closed"]:before { content: "+" }' + '    [data-state="open"]:before { content: "-" }' + '    [data-state="closed"] ~ * { display: none !important }' + '    [data-state="open"] ~ * { padding: 2px 5px !important }' + '</style>' + '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.definition.prop + '</div>';
+            container.innerHTML = '<style>' + '    [data-state="closed"]:before { content: "+" }' + '    [data-state="open"]:before { content: "-" }' + '    [data-state="closed"] ~ * { display: none !important }' + '    [data-state="open"] ~ * { padding: 2px 5px !important }' + '</style>' + '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.prop + '</div>';
 
             container.querySelector('.ObjectEditor').addEventListener('click', this.toggleState);
 
@@ -241,7 +242,7 @@ var PropertyPanel;
         // creates an element for this binding
         ListEditor.prototype.createElement = function (binding) {
             var container = document.createElement('div');
-            container.innerHTML = '<style>' + '    .PropertyEditorInputSelect { position: fixed; }' + '</style>' + '<span class="PropertyEditorName">' + binding.definition.prop + '</span>: ' + '<span class="PropertyEditorValue">----</span>';
+            container.innerHTML = '<style>' + '    .PropertyEditorInputSelect { position: fixed; }' + '</style>' + '<span class="PropertyEditorName">' + binding.prop + '</span>: ' + '<span class="PropertyEditorValue">----</span>';
 
             return container;
         };
@@ -401,7 +402,7 @@ var PropertyPanel;
             if (objects.length === 0)
                 return null;
 
-            for (var i = 0; i < this.definitionGroups.length; ++i) {
+            for (var i = this.definitionGroups.length - 1; i >= 0; --i) {
                 var definitionGroup = this.definitionGroups[i];
                 var supports = true;
 
@@ -415,30 +416,25 @@ var PropertyPanel;
             return null;
         };
 
-        Panel.prototype.findEditorByType = function (editorType) {
-            if (!editorType || editorType.length === 0)
-                return null;
-
-            for (var i = this.editors.length - 1; i >= 0; --i) {
-                var editor = this.editors[i];
-                if (typeof editor === editorType)
-                    return editor;
-            }
-
-            return null;
-        };
-
-        Panel.prototype.findEditorByObjects = function (objects, definition) {
+        Panel.prototype.findEditorByObjects = function (objects, prop, definition) {
             if (objects.length === 0)
                 return null;
+
+            // if there is a specific editorType then must match it
+            if (definition.editorType) {
+                for (var i = this.editors.length - 1; i >= 0; --i) {
+                    var editor = this.editors[i];
+                    if (editor.getEditorType() === definition.editorType)
+                        return editor;
+                }
+                return null;
+            }
 
             for (var i = this.editors.length - 1; i >= 0; --i) {
                 var editor = this.editors[i];
                 var supports = true;
-
                 for (var k = 0; supports && k < objects.length; ++k) {
-                    supports = editor.getEditorType() === definition.editorType;
-                    supports = supports || editor.canHandle(objects[k][definition.prop]);
+                    supports = editor.canHandle(objects[k][prop]);
                 }
 
                 if (supports)
@@ -455,7 +451,7 @@ var PropertyPanel;
             if (typeof this.onInput === 'function') {
                 var event = {
                     objects: binding.objects.slice(),
-                    prop: binding.definition.prop,
+                    prop: binding.prop,
                     value: value
                 };
                 this.onInput(event);
@@ -473,7 +469,7 @@ var PropertyPanel;
             if (typeof this.onChange === 'function') {
                 var event = {
                     objects: binding.objects.slice(),
-                    prop: binding.definition.prop,
+                    prop: binding.prop,
                     value: value
                 };
                 this.onChange(event);
@@ -552,16 +548,13 @@ var PropertyPanel;
             if (definitionGroup === null)
                 return;
 
-            for (var i = 0; i < definitionGroup.definitions.length; ++i) {
-                var definition = definitionGroup.definitions[i];
-                var editor = this.findEditorByType(definition.editorType);
-                if (editor === null)
-                    editor = this.findEditorByObjects(objects, definition);
-
+            for (var prop in definitionGroup.definitions) {
+                var definition = definitionGroup.definitions[prop];
+                var editor = this.findEditorByObjects(objects, prop, definition);
                 if (editor === null)
                     continue;
 
-                var binding = new PropertyPanel.Binding(editor, objects, definition);
+                var binding = new PropertyPanel.Binding(editor, objects, prop, definition);
                 var container = editor.createElement(binding);
                 if (container === null)
                     continue;
@@ -576,7 +569,7 @@ var PropertyPanel;
                 if (editor.hasSubObjects(binding)) {
                     var subObjects = [];
                     for (var k = 0; k < objects.length; ++k)
-                        subObjects[k] = objects[k][definition.prop];
+                        subObjects[k] = objects[k][prop];
 
                     this.buildEditors(subObjects, container);
                 }
@@ -989,26 +982,21 @@ var DeckMaker;
         canUse: function (obj) {
             return obj instanceof DeckMaker.Transform;
         },
-        definitions: [
-            {
-                prop: 'tx'
-            }, {
-                prop: 'ty'
-            }]
+        definitions: {
+            tx: {},
+            ty: {}
+        }
     };
 
     DeckMaker.shapeDefinitionGroup = {
         canUse: function (obj) {
             return obj instanceof Shape;
         },
-        definitions: [
-            {
-                prop: 'width'
-            }, {
-                prop: 'height'
-            }, {
-                prop: 'transform'
-            }]
+        definitions: {
+            width: {},
+            height: {},
+            transform: {}
+        }
     };
 
     //---------------------------------
@@ -1607,12 +1595,10 @@ var DeckMaker;
         canUse: function (obj) {
             return obj instanceof Template;
         },
-        definitions: [
-            {
-                prop: 'isBack'
-            }, {
-                prop: 'numCards'
-            }]
+        definitions: {
+            isBack: {},
+            numCards: {}
+        }
     };
 })(DeckMaker || (DeckMaker = {}));
 // Copyright 2014 Reece Elliott
@@ -1688,15 +1674,16 @@ var DeckMaker;
         canUse: function (obj) {
             return obj instanceof Location;
         },
-        definitions: [{
-                prop: 'layout',
+        definitions: {
+            layout: {
                 editorType: 'list',
                 getList: function () {
                     return DeckMaker.enumToList(LayoutType);
                 }
-            }]
+            }
+        }
     };
-    DeckMaker.extend(DeckMaker.locationDefinitionGroup, DeckMaker.shapeDefinitionGroup);
+    DeckMaker.extend(DeckMaker.locationDefinitionGroup.definitions, DeckMaker.shapeDefinitionGroup.definitions);
 })(DeckMaker || (DeckMaker = {}));
 // Copyright 2014 Reece Elliott
 /// <reference path="_dependencies.ts" />

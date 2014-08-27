@@ -17,7 +17,9 @@ module PropertyPanel {
         /*
          * definitions to show for this object
          */
-        definitions: Definition[];
+        definitions: {
+            [key: string]: Definition
+        };
     }
 
     export class Panel {
@@ -104,7 +106,8 @@ module PropertyPanel {
             if (objects.length === 0)
                 return null;
 
-            for (var i = 0; i < this.definitionGroups.length; ++i) {
+            // work backwards, as the latter definitions are more specific
+            for (var i = this.definitionGroups.length - 1; i >= 0; --i) {
                 var definitionGroup = this.definitionGroups[i];
                 var supports = true;
 
@@ -118,31 +121,27 @@ module PropertyPanel {
             return null;
         }
 
-        private findEditorByType(editorType: string): Editor {
-            if (!editorType || editorType.length === 0)
-                return null;
-
-            for (var i = this.editors.length - 1; i >= 0; --i) {
-                var editor = this.editors[i];
-                if (typeof editor === editorType)
-                    return editor;
-            }
-
-            return null;
-        }
-
-        private findEditorByObjects(objects: any[], definition: Definition): Editor {
+        private findEditorByObjects(objects: any[], prop: string, definition: Definition): Editor {
             if (objects.length === 0)
                 return null;
+
+            // if there is a specific editorType then must match it            
+            if (definition.editorType) {
+                // work backwards, as the editors added last are the most specific
+                for (var i = this.editors.length - 1; i >= 0; --i) {
+                    var editor = this.editors[i];
+                    if (editor.getEditorType() === definition.editorType)
+                        return editor;
+                }
+                return null;
+            }
 
             // work backwards, as the editors added last are the most specific
             for (var i = this.editors.length - 1; i >= 0; --i) {
                 var editor = this.editors[i];
                 var supports = true;
-
                 for (var k = 0; supports && k < objects.length; ++k) {
-                    supports = editor.getEditorType() === definition.editorType;
-                    supports = supports || editor.canHandle(objects[k][definition.prop])
+                    supports = editor.canHandle(objects[k][prop])
                 }
 
                 if (supports)
@@ -159,7 +158,7 @@ module PropertyPanel {
             if (typeof this.onInput === 'function') {
                 var event: Event = {
                     objects: binding.objects.slice(),
-                    prop: binding.definition.prop,
+                    prop: binding.prop,
                     value: value
                 };
                 this.onInput(event);
@@ -177,7 +176,7 @@ module PropertyPanel {
             if (typeof this.onChange === 'function') {
                 var event: Event = {
                     objects: binding.objects.slice(),
-                    prop: binding.definition.prop,
+                    prop: binding.prop,
                     value: value
                 };
                 this.onChange(event);
@@ -257,16 +256,13 @@ module PropertyPanel {
             if (definitionGroup === null)
                 return;
 
-            for (var i = 0; i < definitionGroup.definitions.length; ++i) {
-                var definition = definitionGroup.definitions[i];
-                var editor = this.findEditorByType(definition.editorType);
-                if (editor === null)
-                    editor = this.findEditorByObjects(objects, definition);
-
+            for (var prop in definitionGroup.definitions) {
+                var definition = definitionGroup.definitions[prop];
+                var editor = this.findEditorByObjects(objects, prop, definition);
                 if (editor === null)
                     continue;
 
-                var binding = new Binding(editor, objects, definition);
+                var binding = new Binding(editor, objects, prop, definition);
                 var container = editor.createElement(binding);
                 if (container === null)
                     continue;
@@ -281,7 +277,7 @@ module PropertyPanel {
                 if (editor.hasSubObjects(binding)) {
                     var subObjects = [];
                     for (var k = 0; k < objects.length; ++k)
-                        subObjects[k] = objects[k][definition.prop];
+                        subObjects[k] = objects[k][prop];
 
                     this.buildEditors(subObjects, container);
                 }

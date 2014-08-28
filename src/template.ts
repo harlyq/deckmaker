@@ -101,15 +101,13 @@ module DeckMaker {
 
     //---------------------------------
     export
-    var templateDefinitionGroup: PropertyPanel.DefinitionGroup = {
-        canUse: obj => {
-            return obj instanceof Template;
-        },
-
-        definitions: {
+    var templateDefinition = new PropertyPanel.Definition({
+        type: Template,
+        parent: Shape,
+        properties: {
             isBack: {},
             numCards: {}
         }
-    };
+    });
 
 }

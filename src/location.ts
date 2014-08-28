@@ -62,11 +62,10 @@ module DeckMaker {
 
     //---------------------------------
     export
-    var locationDefinitionGroup: PropertyPanel.DefinitionGroup = {
-        canUse: obj => {
-            return obj instanceof Location;
-        },
-        definitions: {
+    var locationDefinition = new PropertyPanel.Definition({
+        type: Location,
+        parent: Shape,
+        properties: {
             layout: {
                 editorType: 'list',
                 getList: function(): {
@@ -76,7 +75,5 @@ module DeckMaker {
                 }
             }
         }
-    }
-    extend(locationDefinitionGroup.definitions, shapeDefinitionGroup.definitions);
-
+    });
 }

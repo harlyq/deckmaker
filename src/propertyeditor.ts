@@ -1,49 +1,37 @@
+// Copyright 2014 Reece Elliott
+
+///<reference path='propertydefinition.ts'/>
 module PropertyPanel {
-
-    export interface Definition {
-        /*
-         * the type of editor to use.  if not set, 'typeof' will be used to discern the type
-         * of the property.
-         */
-        editorType ? : string;
-
-        /*
-         * if the editorType === 'list', this returns the list
-         */
-        getList ? : () => {
-            [key: string]: any
-        };
-    }
 
     export class Binding {
         container: HTMLElement = null;
 
-        constructor(public editor: Editor, public objects: any[], public prop: string, public definition: Definition) {}
+        constructor(public editor: Editor, public objects: any[], public name: string, public property: Property) {}
 
         /*
          * @return {any} the value of the first *object* of this binding
          */
         getValue(): any {
             if (this.objects.length > 0)
-                return this.objects[0][this.prop];
+                return this.objects[0][this.name];
             else
                 return null;
         }
 
         setValue(value: any) {
             for (var i = 0; i < this.objects.length; ++i) {
-                this.objects[i][this.prop] = value;
+                this.objects[i][this.name] = value;
             }
         }
 
         /*
-         * @return {boolean} true, if all *prop* attribute of all *objects* is the same
+         * @return {boolean} true, if all *name* attribute of all *objects* is the same
          */
         isSameValue(): any {
             var value = this.getValue();
-            var prop = this.prop;
+            var name = this.name;
             for (var i = 1; i < this.objects.length; ++i) {
-                if (this.objects[i][prop] !== value)
+                if (this.objects[i][name] !== value)
                     return false;
             }
             return true;
@@ -123,7 +111,7 @@ module PropertyPanel {
                 '<style>' +
                 '  .inputElem {position: fixed}' +
                 '</style>' +
-                '<span class="PropertyEditorName">' + binding.prop + '</span>: ' +
+                '<span class="PropertyEditorName">' + binding.name + '</span>: ' +
                 '<span class="PropertyEditorValue">' + htmlString + '</span>';
 
             return textElem;
@@ -213,7 +201,7 @@ module PropertyPanel {
                 '    [data-state="closed"] ~ * { display: none !important }' +
                 '    [data-state="open"] ~ * { padding: 2px 5px !important }' +
                 '</style>' +
-                '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.prop + '</div>';
+                '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.name + '</div>';
 
             container.querySelector('.ObjectEditor').addEventListener('click', this.toggleState);
 
@@ -248,7 +236,7 @@ module PropertyPanel {
                 '<style>' +
                 '    .PropertyEditorInputSelect { position: fixed; }' +
                 '</style>' +
-                '<span class="PropertyEditorName">' + binding.prop + '</span>: ' +
+                '<span class="PropertyEditorName">' + binding.name + '</span>: ' +
                 '<span class="PropertyEditorValue">----</span>';
 
             return container;
@@ -261,7 +249,7 @@ module PropertyPanel {
             if (!binding.isSameValue()) {
                 valueSpan.innerHTML = "----";
             } else {
-                var list = binding.definition.getList();
+                var list = binding.property.getList();
                 var value = binding.getValue();
 
                 for (var name in list) {
@@ -276,7 +264,7 @@ module PropertyPanel {
             var valueSpan = < HTMLElement > binding.container.querySelector('.PropertyEditorValue');
             var rectObject = valueSpan.getBoundingClientRect();
 
-            var list = binding.definition.getList();
+            var list = binding.property.getList();
             var value = binding.getValue();
             if (!binding.isSameValue())
                 value = "----";
@@ -306,7 +294,7 @@ module PropertyPanel {
             inputSelect.setAttribute("size", sizeStr);
             inputSelect.setAttribute("expandto", sizeStr);
             inputSelect.addEventListener("change", function(e) {
-                var list = binding.definition.getList();
+                var list = binding.property.getList();
                 var value = list[inputSelect.value];
 
                 self.stopEdit(binding);

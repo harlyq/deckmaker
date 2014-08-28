@@ -1,30 +1,17 @@
+// Copyright 2014 Reece Elliott
+
+///<reference path='propertydefinition.ts'/>
 ///<reference path='propertyeditor.ts'/>
 module PropertyPanel {
 
     export interface Event {
         objects: any[];
-        prop: string;
+        name: string;
         value: any;
-    }
-
-    export interface DefinitionGroup {
-        /*
-         * @param {object} object to evaluate
-         * @return {boolean} true if this definition list can be used for the given object
-         */
-        canUse(object: any): boolean;
-
-        /*
-         * definitions to show for this object
-         */
-        definitions: {
-            [key: string]: Definition
-        };
     }
 
     export class Panel {
         private bindings: Binding[] = [];
-        private definitionGroups: DefinitionGroup[] = [];
         private editors: Editor[] = [];
         private editing: Binding = null;
         private objects: any[] = [];
@@ -68,18 +55,6 @@ module PropertyPanel {
             return this;
         }
 
-        addDefinitionGroup(definitionGroup: DefinitionGroup): Panel {
-            this.definitionGroups.push(definitionGroup);
-            return this;
-        }
-
-        removeDefintionList(definitionGroup: DefinitionGroup): Panel {
-            var i = this.definitionGroups.indexOf(definitionGroup);
-            if (i !== -1)
-                this.definitionGroups.splice(i, 1);
-            return this;
-        }
-
         private onClick(e) {
             var elem = e.target;
             var found = false;
@@ -102,35 +77,16 @@ module PropertyPanel {
             return null;
         }
 
-        private findDefinitionGroup(objects: any[]): DefinitionGroup {
-            if (objects.length === 0)
-                return null;
-
-            // work backwards, as the latter definitions are more specific
-            for (var i = this.definitionGroups.length - 1; i >= 0; --i) {
-                var definitionGroup = this.definitionGroups[i];
-                var supports = true;
-
-                for (var k = 0; supports && k < objects.length; ++k)
-                    supports = definitionGroup.canUse(objects[k]);
-
-                if (supports)
-                    return definitionGroup;
-            }
-
-            return null;
-        }
-
-        private findEditorByObjects(objects: any[], prop: string, definition: Definition): Editor {
+        private findEditorByObjects(objects: any[], name: string, property: Property): Editor {
             if (objects.length === 0)
                 return null;
 
             // if there is a specific editorType then must match it            
-            if (definition.editorType) {
+            if (property.editorType) {
                 // work backwards, as the editors added last are the most specific
                 for (var i = this.editors.length - 1; i >= 0; --i) {
                     var editor = this.editors[i];
-                    if (editor.getEditorType() === definition.editorType)
+                    if (editor.getEditorType() === property.editorType)
                         return editor;
                 }
                 return null;
@@ -141,7 +97,7 @@ module PropertyPanel {
                 var editor = this.editors[i];
                 var supports = true;
                 for (var k = 0; supports && k < objects.length; ++k) {
-                    supports = editor.canHandle(objects[k][prop])
+                    supports = editor.canHandle(objects[k][name])
                 }
 
                 if (supports)
@@ -158,7 +114,7 @@ module PropertyPanel {
             if (typeof this.onInput === 'function') {
                 var event: Event = {
                     objects: binding.objects.slice(),
-                    prop: binding.prop,
+                    name: binding.name,
                     value: value
                 };
                 this.onInput(event);
@@ -176,7 +132,7 @@ module PropertyPanel {
             if (typeof this.onChange === 'function') {
                 var event: Event = {
                     objects: binding.objects.slice(),
-                    prop: binding.prop,
+                    name: binding.name,
                     value: value
                 };
                 this.onChange(event);
@@ -252,17 +208,17 @@ module PropertyPanel {
         }
 
         private buildEditors(objects: any[], parent: HTMLElement) {
-            var definitionGroup = this.findDefinitionGroup(objects);
-            if (definitionGroup === null)
+            var definition = g_definitionManager.findDefinitionByObject(objects);
+            if (definition === null)
                 return;
 
-            for (var prop in definitionGroup.definitions) {
-                var definition = definitionGroup.definitions[prop];
-                var editor = this.findEditorByObjects(objects, prop, definition);
+            for (var name in definition.properties) {
+                var property = definition.properties[name];
+                var editor = this.findEditorByObjects(objects, name, property);
                 if (editor === null)
                     continue;
 
-                var binding = new Binding(editor, objects, prop, definition);
+                var binding = new Binding(editor, objects, name, property);
                 var container = editor.createElement(binding);
                 if (container === null)
                     continue;
@@ -277,7 +233,7 @@ module PropertyPanel {
                 if (editor.hasSubObjects(binding)) {
                     var subObjects = [];
                     for (var k = 0; k < objects.length; ++k)
-                        subObjects[k] = objects[k][prop];
+                        subObjects[k] = objects[k][name];
 
                     this.buildEditors(subObjects, container);
                 }

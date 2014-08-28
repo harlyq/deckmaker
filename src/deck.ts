@@ -53,6 +53,10 @@ module DeckMaker {
             return this;
         }
 
+        getFirstTemplate(): Template {
+            return this.templates[0];
+        }
+
         createCards(): Card[] {
             var cards: Card[] = [];
             for (var i = 0; i < this.templates.length; ++i) {

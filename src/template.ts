@@ -42,13 +42,16 @@ module DeckMaker {
             if (vertices.length < 4)
                 return;
 
+            var transform = this.getTransform();
+
+            ctx.save();
             ctx.strokeStyle = this.deck.color;
             ctx.lineWidth = 3;
 
             ctx.beginPath();
-            ctx.moveTo(vertices[0], vertices[1]);
+            drawMoveTo(ctx, transform, vertices[0], vertices[1]);
             for (var i = 2; i < this.vertices.length; i += 2) {
-                ctx.lineTo(vertices[i], vertices[i + 1]);
+                drawLineTo(ctx, transform, vertices[i], vertices[i + 1]);
             }
             ctx.closePath();
             ctx.stroke();
@@ -57,21 +60,18 @@ module DeckMaker {
             ctx.font = '20pt arial';
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'center';
-            ctx.fillText(this.numCards.toString(), this.width / 2, this.height / 2);
+            drawText(ctx, transform, this.numCards.toString(), this.width / 2, this.height / 2);
+            ctx.restore();
         }
 
         drawCard(ctx: CanvasRenderingContext2D, cardWidth: number, cardHeight: number) {
-            ctx.save();
-
             var pictureLayer = this.page.getLayer(PictureLayer);
             var transform = this.getTransform();
             var tx = transform.tx;
             var ty = transform.ty;
-            var w = this.width;
-            var h = this.height;
+            var w = this.width * transform.sx;
+            var h = this.height * transform.sy;
             ctx.drawImage(pictureLayer.canvas, tx, ty, w, h, 0, 0, cardWidth, cardHeight);
-
-            ctx.restore();
         }
 
         isInside(x: number, y: number): boolean {
@@ -101,7 +101,7 @@ module DeckMaker {
 
     //---------------------------------
     export
-    var templateDefinition = new PropertyPanel.Definition({
+    var templateDefinition = PropertyPanel.createDefinition({
         type: Template,
         parent: Shape,
         properties: {

@@ -7,13 +7,23 @@ module DeckMaker {
     export class Tool {
         hasFocus: boolean = false; // what if two tools have focus???
 
-        touched(touch: Touch) {}
+        touched(touch: Touch) {
+            var page: Page = getEnv("page");
+            if (!page)
+                return;
+
+            var pos = page.panZoom.getLocal(touch.x, touch.y);
+
+            this.onTouched(touch, page, pos);
+        }
 
         isInside(x: number, y: number): boolean {
             return false;
         }
 
         draw(ctx: CanvasRenderingContext2D) {}
+
+        onTouched(touch: Touch, page: Page, pos: XY) {}
     }
 
     //---------------------------------
@@ -27,18 +37,12 @@ module DeckMaker {
             super();
         }
 
-        touched(touch: Touch) {
-            var page: Page = getEnv("page");
-            if (!page)
-                return;
-
+        onTouched(touch: Touch, page: Page, pos: XY) {
             var templateLayer = page.getLayer(TemplateLayer);
             var toolLayer = page.getLayer(ToolLayer);
             if (!toolLayer || !templateLayer)
                 return;
 
-            var panZoom = page.panZoom;
-            var pos = panZoom.getLocal(touch.x, touch.y);
             var isUsed = false;
 
             switch (touch.state) {
@@ -70,6 +74,7 @@ module DeckMaker {
 
                             page.getCommandList().addCommand(new LocationCommand(newLocation));
 
+                            page.getSelection().setSelectedShapes([newLocation]);
                             var propertyPanel = getEnv("propertyPanel");
                             if (propertyPanel)
                                 propertyPanel.setObjects([newLocation], function() {
@@ -135,8 +140,7 @@ module DeckMaker {
             super();
         }
 
-        touched(touch: Touch) {
-            var page: Page = getEnv("page");
+        onTouched(touch: Touch, page: Page, pos: XY) {
             var panZoom = page.panZoom;
             var isUsed = false;
 
@@ -194,15 +198,10 @@ module DeckMaker {
             this.ctx = this.canvas.getContext("2d");
         }
 
-        touched(touch: Touch) {
+        onTouched(touch: Touch, page: Page, pos: XY) {
             if (touch.state !== TouchState.Down)
                 return;
 
-            var page: Page = getEnv("page");
-            if (!page)
-                return;
-
-            var pos = page.panZoom.getLocal(touch.x, touch.y);
             var pictureLayer = page.getLayer(PictureLayer);
             if (!pictureLayer)
                 return;
@@ -262,11 +261,10 @@ module DeckMaker {
             this.ctx = this.canvas.getContext("2d");
         }
 
-        touched(touch: Touch) {
+        onTouched(touch: Touch, page: Page, pos: XY) {
             if (touch.state !== TouchState.Down)
                 return;
 
-            var page: Page = getEnv("page");
             var deck: Deck = getEnv("deck");
             if (!page || !deck)
                 return;
@@ -276,12 +274,11 @@ module DeckMaker {
             if (!pictureLayer || !templateLayer)
                 return;
 
-            var pos = page.panZoom.getLocal(touch.x, touch.y);
             var shape = pictureLayer.getShapeFromXY(pos.x, pos.y);
             if (shape === null)
                 return;
 
-            pos = shape.getTransform().getLocal(pos.x, pos.y);
+            var picturePos = shape.getTransform().getLocal(pos.x, pos.y);
 
             this.canvas.width = shape.width;
             this.canvas.height = shape.height;
@@ -296,8 +293,8 @@ module DeckMaker {
 
             var imageData = floodFill({
                 ctx: this.ctx,
-                x: pos.x,
-                y: pos.y,
+                x: picturePos.x,
+                y: picturePos.y,
                 match: function(col: Color): boolean {
                     return col.a > 1;
                 },
@@ -327,6 +324,10 @@ module DeckMaker {
                 propertyPanel.setObjects([newTemplate], function() {
                     page.rebuildLayer(TemplateLayer);
                 });
+
+            var deckPanel = getEnv("deckPanel");
+            if (deckPanel && deck.getFirstTemplate() === newTemplate)
+                deckPanel.refresh();
         }
     }
 
@@ -418,18 +419,13 @@ module DeckMaker {
     export class MoveTool extends Tool {
         oldTransforms: Transform[] = [];
 
-        touched(touch: Touch) {
-            var page: Page = getEnv("page");
-            if (!page)
-                return;
-
+        onTouched(touch: Touch, page: Page, pos: XY) {
             var toolLayer = page.getLayer(ToolLayer);
             var pictureLayer = page.getLayer(PictureLayer);
             var templateLayer = page.getLayer(TemplateLayer);
             if (!toolLayer || (!pictureLayer || !templateLayer))
                 return; // nothing to move
 
-            var pos = page.panZoom.getLocal(touch.x, touch.y);
             var selection = page.getSelection();
             var groupShape = selection.getSelectGroup();
             var hadFocus = this.hasFocus;
@@ -448,8 +444,8 @@ module DeckMaker {
                     }
 
                     if (shape) {
-                        if (!groupShape.contains(shape))
-                            groupShape.setShapes([shape]);
+                        if (!selection.containsSelected(shape))
+                            selection.setSelectedShapes([shape]);
 
                         var shapes = selection.getSelectedShapes();
                         this.oldTransforms.length = 0;
@@ -488,14 +484,6 @@ module DeckMaker {
                 page.refresh();
             }
         }
-
-        private moveShapes(shapes: Shape[], srcLayer: Layer, destLayer: Layer) {
-            srcLayer.removeShapes(shapes);
-            destLayer.addShapes(shapes);
-
-            srcLayer.rebuild();
-            destLayer.rebuild();
-        }
     }
 
     //---------------------------------
@@ -503,8 +491,10 @@ module DeckMaker {
         shapes: Shape[];
         oldTransforms: Transform[];
         newTransforms: Transform[] = [];
+        page: Page;
 
         constructor(shapes: Shape[], oldTransforms: Transform[]) {
+            this.page = getEnv('page');
             this.shapes = shapes.slice(); // copy
             this.oldTransforms = oldTransforms.slice(); // copy
             for (var i = 0; i < shapes.length; ++i) {
@@ -516,12 +506,208 @@ module DeckMaker {
             for (var i = 0; i < this.shapes.length; ++i) {
                 this.shapes[i].getTransform().copy(this.newTransforms[i]);
             }
+            this.page.rebuild();
         }
 
         undo() {
             for (var i = 0; i < this.shapes.length; ++i) {
                 this.shapes[i].getTransform().copy(this.oldTransforms[i]);
             }
+            this.page.rebuild();
         }
     }
+
+
+    //---------------------------------
+    export class SelectTool extends Tool {
+        x1: number; // in page coords
+        y1: number;
+        x2: number;
+        y2: number;
+
+        onTouched(touch: Touch, page: Page, pos: XY) {
+            var hadFocus = this.hasFocus;
+            var toolLayer = page.getLayer(ToolLayer);
+            var pictureLayer = page.getLayer(PictureLayer);
+            var templateLayer = page.getLayer(TemplateLayer);
+            if (!toolLayer || (!pictureLayer || !templateLayer))
+                return; // nothing to move
+
+            switch (touch.state) {
+                case TouchState.Down:
+                    var shape: Shape = page.getShapeFromXY(touch.x, touch.y);
+
+                    if (!shape) {
+                        this.x1 = this.x2 = pos.x;
+                        this.y1 = this.y2 = pos.y;
+                        toolLayer.addTool(this);
+                        this.hasFocus = true;
+                    }
+
+                    break;
+
+                case TouchState.Move:
+                    if (this.hasFocus) {
+                        this.x2 = pos.x;
+                        this.y2 = pos.y;
+                    }
+                    break;
+
+                case TouchState.Up:
+                    if (this.hasFocus) {
+                        var x1 = Math.min(this.x1, this.x2);
+                        var x2 = Math.max(this.x1, this.x2);
+                        var y1 = Math.min(this.y1, this.y2);
+                        var y2 = Math.max(this.y1, this.y2);
+                        var templateShapes = templateLayer.getShapesFromRegion(this.x1, this.y1, this.x2, this.y2);
+                        var pictureShapes = pictureLayer.getShapesFromRegion(this.x1, this.y1, this.x2, this.y2);
+
+                        page.getSelection().setSelectedShapes(templateShapes.concat(pictureShapes));
+
+                        toolLayer.removeTool(this);
+                        this.hasFocus = false;
+                    }
+                    break;
+            }
+
+            if (this.hasFocus || hadFocus) {
+                toolLayer.rebuild();
+                page.refresh();
+            }
+        }
+
+        draw(ctx: CanvasRenderingContext2D) {
+            var page = getEnv('page');
+            if (!page)
+                return;
+
+            if (this.hasFocus) {
+                ctx.save();
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1);
+                ctx.restore();
+            }
+        }
+    }
+
+    //---------------------------------
+    enum ResizeToolHandle {
+        Middle = 0, Left = 1, Right = 2, Top = 4, Bottom = 8
+    };
+
+    export class ResizeTool extends Tool {
+        private handle: ResizeToolHandle = ResizeToolHandle.Middle;
+        private startLocalPos: XY;
+        private deltaX: number = 0;
+        private deltaY: number = 0;
+        private oldTransform: Transform = null;
+        private oldTransforms: Transform[] = [];
+
+        onTouched(touch: Touch, page: Page, pos: XY) {
+            var toolLayer = page.getLayer(ToolLayer);
+            if (!toolLayer)
+                return;
+
+            var selectGroup = page.getSelection().getSelectGroup();
+            var hadFocus = this.hasFocus;
+
+            switch (touch.state) {
+                case TouchState.Down:
+                    if (!selectGroup.isInside(pos.x, pos.y)) {
+                        var shape = page.getShapeFromXY(touch.x, touch.y);
+                        if (shape)
+                            page.getSelection().setSelectedShapes([shape]);
+                    }
+
+                    if (selectGroup.isInside(pos.x, pos.y)) {
+                        toolLayer.addShapes([selectGroup]);
+                        toolLayer.addTool(this);
+
+                        var shapes = page.getSelection().getSelectedShapes();
+                        this.oldTransforms.length = 0;
+                        for (var i = 0; i < shapes.length; ++i)
+                            this.oldTransforms[i] = shapes[i].getTransform().clone();
+
+                        var localPos = selectGroup.getTransform().getLocal(pos.x, pos.y);
+                        this.handle = ResizeToolHandle.Middle;
+
+                        if (localPos.x < selectGroup.width / 3)
+                            this.handle = (this.handle | ResizeToolHandle.Left);
+                        else if (localPos.x > selectGroup.width * 2 / 3)
+                            this.handle = (this.handle | ResizeToolHandle.Right);
+
+                        if (localPos.y < selectGroup.height / 3)
+                            this.handle = (this.handle | ResizeToolHandle.Top);
+                        else if (localPos.y > selectGroup.height * 2 / 3)
+                            this.handle = (this.handle | ResizeToolHandle.Bottom);
+
+                        this.startLocalPos = localPos;
+                        this.deltaX = 0;
+                        this.deltaY = 0;
+                        this.oldTransform = selectGroup.getTransform().clone();
+
+                        this.hasFocus = true;
+                    }
+                    break;
+
+                case TouchState.Move:
+                    if (this.hasFocus) {
+                        var oldTransform = this.oldTransform;
+                        var localPos = oldTransform.getLocal(pos.x, pos.y);
+
+                        var dx = (localPos.x - this.startLocalPos.x);
+                        var dy = (localPos.y - this.startLocalPos.y);
+                        var sx = dx / selectGroup.width; // unscaled delta
+                        var sy = dy / selectGroup.height; // unscaled delta
+                        var newTransform = oldTransform.clone();
+
+                        if (this.handle & ResizeToolHandle.Left) {
+                            newTransform.tx += dx;
+                            newTransform.sx -= sx;
+                        } else if (this.handle & ResizeToolHandle.Right) {
+                            // newTransform.tx += dx * 0.5;
+                            newTransform.sx += sx;
+                        }
+
+                        if (this.handle & ResizeToolHandle.Top) {
+                            newTransform.ty += dy;
+                            newTransform.sy -= sy;
+                        } else if (this.handle & ResizeToolHandle.Bottom) {
+                            // newTransform.ty += dy * 0.5;
+                            newTransform.sy += sy;
+                        }
+
+                        if (this.handle === ResizeToolHandle.Middle) {
+                            newTransform.tx += dx;
+                            newTransform.ty += dy;
+                        }
+
+                        selectGroup.getTransform().copy(newTransform);
+                    }
+                    break;
+
+                case TouchState.Up:
+                    if (this.hasFocus) {
+                        selectGroup.applyTransformToShapes();
+                        toolLayer.removeShapes([selectGroup]);
+                        toolLayer.removeTool(this);
+
+                        var shapes = page.getSelection().getSelectedShapes();
+                        var moveCommand = new MoveCommand(shapes, this.oldTransforms);
+                        page.getCommandList().addCommand(moveCommand);
+
+                        this.hasFocus = false;
+                    }
+                    break;
+            }
+
+            if (this.hasFocus || hadFocus) {
+                toolLayer.rebuild();
+                page.refresh();
+            }
+        }
+    }
+
 }

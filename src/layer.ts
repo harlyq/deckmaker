@@ -79,12 +79,12 @@ module DeckMaker {
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
 
-                ctx.save();
-                if (shape.transform instanceof Transform)
-                    shape.transform.draw(ctx);
+                // ctx.save();
+                // if (shape.transform instanceof Transform)
+                //     shape.transform.draw(ctx);
 
                 shape.draw(ctx);
-                ctx.restore();
+                // ctx.restore();
             }
         }
 
@@ -98,6 +98,18 @@ module DeckMaker {
             }
 
             return null;
+        }
+
+        getShapesFromRegion(x1: number, y1: number, x2: number, y2: number): Shape[] {
+            var regionShapes: Shape[] = [];
+            for (var i = 0; i < this.shapes.length; ++i) {
+                var shape = this.shapes[i];
+                if (shape.isInRegion(x1, y1, x2, y2)) {
+                    regionShapes.push(shape);
+                }
+            }
+
+            return regionShapes;
         }
 
         draw(ctx: CanvasRenderingContext2D) {
@@ -121,7 +133,6 @@ module DeckMaker {
 
         addTool(tool: Tool): ToolLayer {
             this.tools.push(tool);
-
             return this;
         }
 

@@ -17,23 +17,25 @@ module DeckMaker {
 
         // removes the shape from the selected list
         removeSelected(shape: Shape) {
-            var index: number = this.selectedShapes.indexOf(shape);
+            var index = this.selectedShapes.indexOf(shape);
             if (index !== -1) {
                 this.selectedShapes.splice(index, 1);
                 this.rebuild();
             }
         }
 
-        toggleSelected(shapes: Shape[]) {
-            for (var i: number = 0; i < shapes.length; ++i) {
-                var shape: Shape = shapes[i];
-                var index: number = this.selectedShapes.indexOf(shape);
-                if (index === -1)
-                    this.selectedShapes.push(shape);
-                else
-                    this.selectedShapes.splice(index, 1);
-            }
+        toggleSelected(shape: Shape) {
+            var index = this.selectedShapes.indexOf(shape);
+            if (index === -1)
+                this.selectedShapes.push(shape);
+            else
+                this.selectedShapes.splice(index, 1);
+
             this.rebuild();
+        }
+
+        containsSelected(shape: Shape) {
+            return this.selectedShapes.indexOf(shape) !== -1;
         }
 
         isSelected(shape: Shape): boolean {

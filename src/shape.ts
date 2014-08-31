@@ -3,6 +3,30 @@
 /// <reference path="_dependencies.ts" />
 module DeckMaker {
 
+    export
+
+    function drawRect(ctx: CanvasRenderingContext2D, transform: Transform, width: number, height: number) {
+        ctx.rect(transform.tx, transform.ty, transform.sx * width, transform.sy * height);
+    }
+
+    export
+
+    function drawMoveTo(ctx: CanvasRenderingContext2D, transform: Transform, x: number, y: number) {
+        ctx.moveTo(transform.tx + x * transform.sx, transform.ty + y * transform.sy);
+    }
+
+    export
+
+    function drawLineTo(ctx: CanvasRenderingContext2D, transform: Transform, x: number, y: number) {
+        ctx.lineTo(transform.tx + x * transform.sx, transform.ty + y * transform.sy);
+    }
+
+    export
+
+    function drawText(ctx: CanvasRenderingContext2D, transform: Transform, str: string, x: number, y: number) {
+        ctx.fillText(str, transform.tx + x * transform.sx, transform.ty + y * transform.sy);
+    }
+
     //---------------------------------
     export class Shape {
         width: number = 0;
@@ -17,22 +41,32 @@ module DeckMaker {
                 pos.y >= 0 && pos.y < this.height;
         }
 
+        isInRegion(x1: number, y1: number, x2: number, y2: number): boolean {
+            var pos1 = this.transform.getLocal(x1, y1);
+            var pos2 = this.transform.getLocal(x2, y2);
+
+            return pos1.x < this.width && x2 >= 0 &&
+                pos1.y < this.height && y2 >= 0;
+        }
+
         getTransform(): Transform {
             return this.transform;
         }
     }
 
     export
-    var transformDefinition = new PropertyPanel.Definition({
+    var transformDefinition = PropertyPanel.createDefinition({
         type: Transform,
         properties: {
             tx: {},
-            ty: {}
+            ty: {},
+            sx: {},
+            sy: {}
         }
     });
 
     export
-    var shapeDefinition = new PropertyPanel.Definition({
+    var shapeDefinition = PropertyPanel.createDefinition({
         type: Shape,
         properties: {
             width: {},
@@ -44,6 +78,7 @@ module DeckMaker {
     //---------------------------------
     export class Picture extends Shape {
         private image = new Image();
+        keepAspectRatio: boolean = true;
 
         constructor(src: string) {
             super();
@@ -52,7 +87,21 @@ module DeckMaker {
         }
 
         draw(ctx: CanvasRenderingContext2D) {
-            ctx.drawImage(this.image, 0, 0);
+            var transform = this.getTransform();
+            var width = this.width * transform.sx;
+            var height = this.height * transform.sy;
+            if (this.keepAspectRatio) {
+                // clamp width or height to the smallest side
+                var aspectRatio = this.image.width / this.image.height;
+                var aspectWidth = aspectRatio * height;
+                var aspectHeight = width / aspectRatio;
+                if (aspectWidth > width)
+                    height = aspectHeight;
+                else
+                    width = aspectWidth;
+            }
+
+            ctx.drawImage(this.image, transform.tx, transform.ty, width, height);
         }
 
         setSrc(src: string) {
@@ -61,6 +110,15 @@ module DeckMaker {
             this.height = this.image.height;
         }
     }
+
+    export
+    var pictureDefinition = PropertyPanel.createDefinition({
+        type: Picture,
+        parent: Shape,
+        properties: {
+            keepAspectRatio: {}
+        }
+    });
 
     //---------------------------------
     export class GroupShape extends Shape {
@@ -91,23 +149,35 @@ module DeckMaker {
 
         draw(ctx: CanvasRenderingContext2D) {
             ctx.save();
-            ctx.strokeStyle = "green";
-            ctx.lineWidth = 1;
-            ctx.strokeRect(0, 0, this.width, this.height);
 
             ctx.beginPath();
+            ctx.strokeStyle = "green";
+            ctx.lineWidth = 1;
+            drawRect(ctx, this.getTransform(), this.width, this.height);
+
             var transform = new Transform();
+
+            // for (var i = 0; i < this.shapes.length; ++i) {
+            //     var shape = this.shapes[i];
+            //     // ctx.save();
+            //     transform.copy(this.oldTransforms[i]);
+            //     transform.multiply(this.invGroupTransform);
+            //     // transform.draw(ctx);
+            //     ctx.rect(0, 0, shape.width, shape.height);
+            //     // ctx.restore();
+            // }
+
+            var diffTransform = this.getTransform().clone();
+            diffTransform.multiply(this.invGroupTransform);
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
-                ctx.save();
                 transform.copy(this.oldTransforms[i]);
-                transform.multiply(this.invGroupTransform);
-                transform.draw(ctx);
-                ctx.rect(0, 0, shape.width, shape.height);
-                ctx.restore();
+                transform.multiply(diffTransform);
+                drawRect(ctx, transform, shape.width, shape.height);
             }
             ctx.stroke();
+
             ctx.restore();
         }
 

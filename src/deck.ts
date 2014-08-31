@@ -5,6 +5,7 @@ module DeckMaker {
 
     //---------------------------------
     export class Deck {
+        private templates: Template[] = [];
         id: number;
         color: string;
         cardWidth: number;
@@ -12,7 +13,9 @@ module DeckMaker {
         maxWidth: number;
         width: number;
         height: number;
-        private templates: Template[] = [];
+        get aspectRatio(): number {
+            return this.cardWidth / this.cardHeight;
+        }
 
         private static uniqueID: number = 1;
         private static colors: string[] = [
@@ -29,6 +32,11 @@ module DeckMaker {
         addTemplate(template: Template): Deck {
             this.templates.push(template);
             template.deck = this;
+
+            if (this.templates.length === 1) {
+                this.cardWidth = template.width;
+                this.cardHeight = template.height;
+            }
             return this;
         }
 
@@ -75,11 +83,6 @@ module DeckMaker {
             var cardWidth;
             var cardHeight;
             var templates = this.templates;
-
-            if (templates.length > 0) {
-                this.cardWidth = templates[0].width;
-                this.cardHeight = templates[0].height;
-            }
 
             for (var i = 0; i < templates.length; ++i) {
                 var template = templates[i];

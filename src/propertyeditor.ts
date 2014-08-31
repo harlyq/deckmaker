@@ -108,9 +108,6 @@ module PropertyPanel {
             var htmlString = (binding.isSameValue() ? binding.getValue() : '----');
 
             textElem.innerHTML =
-                '<style>' +
-                '  .inputElem {position: fixed}' +
-                '</style>' +
                 '<span class="PropertyEditorName">' + binding.name + '</span>: ' +
                 '<span class="PropertyEditorValue">' + htmlString + '</span>';
 
@@ -145,7 +142,7 @@ module PropertyPanel {
                 value = '----';
 
             // place inputElem on top of the valueElem
-            inputElem.classList.add('inputElem');
+            inputElem.classList.add('StringEditorInputElem');
             inputElem.classList.add('PropertyEditorEdit');
             inputElem.style.top = rectObject.top + 'px';
             inputElem.style.left = rectObject.left + 'px';
@@ -195,12 +192,6 @@ module PropertyPanel {
         createElement(binding: Binding): HTMLElement {
             var container = document.createElement('div');
             container.innerHTML =
-                '<style>' +
-                '    [data-state="closed"]:before { content: "+" }' +
-                '    [data-state="open"]:before { content: "-" }' +
-                '    [data-state="closed"] ~ * { display: none !important }' +
-                '    [data-state="open"] ~ * { padding: 2px 5px !important }' +
-                '</style>' +
                 '<div class="ObjectEditor PropertyEditorName" data-state="closed">' + binding.name + '</div>';
 
             container.querySelector('.ObjectEditor').addEventListener('click', this.toggleState);
@@ -233,9 +224,6 @@ module PropertyPanel {
         createElement(binding: Binding): HTMLElement {
             var container = document.createElement('div');
             container.innerHTML =
-                '<style>' +
-                '    .PropertyEditorInputSelect { position: fixed; }' +
-                '</style>' +
                 '<span class="PropertyEditorName">' + binding.name + '</span>: ' +
                 '<span class="PropertyEditorValue">----</span>';
 

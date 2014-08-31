@@ -6,10 +6,8 @@ module DeckMaker {
     export class DeckManager {
         private decks: Deck[] = [];
 
-        createDeck(name: string): Deck {
-            var deck = new Deck(name);
+        addDeck(deck: Deck) {
             this.decks.push(deck);
-            return deck;
         }
 
         getDeckByName(name: string) {
@@ -17,7 +15,7 @@ module DeckMaker {
                 if (this.decks[i].name === name)
                     return this.decks[i];
             }
-            return undefined;
+            return null;
         }
 
         getDeckById(id: number): Deck {
@@ -25,7 +23,7 @@ module DeckMaker {
                 if (this.decks[i].id === id)
                     return this.decks[i];
             }
-            return undefined;
+            return null;
         }
 
         getDecks(): Deck[] {

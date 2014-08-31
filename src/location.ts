@@ -51,7 +51,12 @@ module DeckMaker {
 
         draw(ctx: CanvasRenderingContext2D) {
             ctx.save();
-            ctx.strokeRect(0, 0, this.width, this.height);
+
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'blue';
+            drawRect(ctx, this.getTransform(), this.width, this.height);
+            ctx.stroke();
 
             for (var i = 0; i < this.cards.length; ++i)
                 this.cards[i].draw(ctx);
@@ -62,7 +67,7 @@ module DeckMaker {
 
     //---------------------------------
     export
-    var locationDefinition = new PropertyPanel.Definition({
+    var locationDefinition = PropertyPanel.createDefinition({
         type: Location,
         parent: Shape,
         properties: {

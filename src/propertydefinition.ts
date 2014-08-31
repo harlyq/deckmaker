@@ -2,6 +2,13 @@
 
 module PropertyPanel {
 
+    export
+    var createDefinition = function(options: DefinitionOptions): Definition {
+        var definition = new Definition(options);
+        g_definitionManager.addDefinition(definition)
+        return definition;
+    }
+
     export interface PropertyMap {
         [key: string]: any;
     }
@@ -46,8 +53,6 @@ module PropertyPanel {
             for (var prop in options.properties) {
                 this.properties[prop] = options.properties[prop];
             }
-
-            g_definitionManager.addDefinition(this);
         }
     }
 
@@ -67,7 +72,7 @@ module PropertyPanel {
 
         findDefinitionByObject(objects: any[]): Definition {
             if (objects.length === 0)
-                return undefined;
+                return null;
 
             // work backwards, as the latter definitions are more specific
             for (var i = this.definitions.length - 1; i >= 0; --i) {
@@ -81,7 +86,7 @@ module PropertyPanel {
                     return definition;
             }
 
-            return undefined;
+            return null;
         }
     }
 

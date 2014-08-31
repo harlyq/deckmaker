@@ -77,6 +77,19 @@ module DeckMaker {
                 this.layers[i].draw(ctx);
             ctx.restore();
         }
-    }
 
+        getShapeFromXY(x: number, y: number): Shape {
+            var shape: Shape = null;
+            var pos = this.panZoom.getLocal(x, y);
+
+            // reverse order, because last layer appears on top
+            for (var i = this.layers.length - 1; i >= 0; --i) {
+                var shape = this.layers[i].getShapeFromXY(pos.x, pos.y);
+                if (shape)
+                    return shape;
+            }
+
+            return null;
+        }
+    }
 }

@@ -24,6 +24,14 @@
     #canvas {
         display: inline-block;
     }
+    #deckPanel {
+        width: 100px;
+        height: 400px;
+        overflow-y: scroll;
+        overflow-x: hidden;
+        display: inline-block;
+        vertical-align: top;
+    }
     #propertyPanel {
         display: inline-block;
         vertical-align: top;
@@ -33,6 +41,38 @@
         user-select: none;
         -webkit-user-select: none;
         cursor: pointer;
+    }
+    .DeckPanelSelected {
+        border: 1px solid blue;
+    }
+    .DeckThumbnailCanvas {
+        left: 10%;
+        top: 10%;
+        position: relative
+    }
+    .DeckThumbnailName {
+        color: red;
+        text-align: center;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .StringEditorInputElem {
+        position: fixed;
+    }
+    .ObjectEditor[data-state="closed"]:before {
+        content: "+"
+    }
+    .ObjectEditor[data-state="open"]:before {
+        content: "-"
+    }
+    .ObjectEditor[data-state="closed"] ~ * {
+        display: none !important
+    }
+    .ObjectEditor[data-state="open"] ~ * {
+        padding: 2px 5px !important
+    }
+    .PropertyEditorInputSelect {
+        position: fixed;
     }
     </style>
 
@@ -48,7 +88,10 @@
     var pictureTool = null;
     var undoRedoTool = null;
     var moveTool = null;
+    var selectTool = null;
+    var resizeTool = null;
     var propertyPanel = null;
+    var deckPanel = null;
 
     function setTool(newTool) {
         if (tool) {
@@ -72,8 +115,10 @@
                 board.setTools([pictureTool, locationTool]);
                 break;
             case "move":
-                board.setTools([moveTool]);
+                board.setTools([moveTool, selectTool]);
                 break;
+            case "resize":
+                board.setTools([resizeTool, selectTool]);
         }
 
         if (newTool) {
@@ -105,18 +150,12 @@
                 setTool("alphaFill");
                 break;
         }
+        deckPanel.refresh();
     }
 
     function setDeck(newDeck) {
-        if (deck)
-            document.getElementById(deck).classList.remove("current");
-
-        deck = newDeck;
-        board.setDeckByName(newDeck);
-
-        if (newDeck) {
-            document.getElementById(newDeck).classList.add("current");
-        }
+        var deck = DeckMaker.getDeckByName(newDeck);
+        deckPanel.setSelectedDeck(deck);
     }
 
     function clickTool(e) {
@@ -165,11 +204,7 @@
         document.getElementById("picture").addEventListener("change", addPicture);
         document.getElementById("location").addEventListener("click", clickTool);
         document.getElementById("move").addEventListener("click", clickTool);
-
-        document.getElementById("deck1").addEventListener("click", clickDeck);
-        document.getElementById("deck2").addEventListener("click", clickDeck);
-        document.getElementById("deck3").addEventListener("click", clickDeck);
-        document.getElementById("deck4").addEventListener("click", clickDeck);
+        document.getElementById("resize").addEventListener("click", clickTool);
 
         document.getElementById("undo").addEventListener("click", clickUndo);
         document.getElementById("redo").addEventListener("click", clickRedo);
@@ -179,6 +214,14 @@
         propertyPanel.addEditor(new PropertyPanel.ListEditor());
         propertyPanel.addEditor(new PropertyPanel.ObjectEditor());
 
+        var deckPanelElem = document.getElementById('deckPanel');
+        deckPanel = new DeckMaker.DeckPanel(deckPanelElem);
+        deckPanelElem.addEventListener('change', function(e) {
+            e.preventDefault();
+            DeckMaker.setEnv('deck', e.detail.deck);
+            deckPage.rebuild();
+        })
+
         var boardPage = new DeckMaker.Page("board");
         board.addPage(boardPage);
 
@@ -186,11 +229,10 @@
         boardPage.addLayer(new DeckMaker.TemplateLayer());
         boardPage.addLayer(new DeckMaker.ToolLayer());
 
-        var deck1 = new DeckMaker.Deck("deck1");
-        var deck2 = new DeckMaker.Deck("deck2");
-        var deck3 = new DeckMaker.Deck("deck3");
-        var deck4 = new DeckMaker.Deck("deck4");
-        board.addDeck(deck1).addDeck(deck2).addDeck(deck3).addDeck(deck4);
+        DeckMaker.createDeck("deck1");
+        DeckMaker.createDeck("deck2");
+        DeckMaker.createDeck("deck3");
+        DeckMaker.createDeck("deck4");
 
         var deckPage = new DeckMaker.DeckPage("deckPage");
         board.addPage(deckPage);
@@ -209,6 +251,8 @@
         pictureTool = new DeckMaker.PictureTool();
         undoRedoTool = new DeckMaker.UndoRedoTool();
         moveTool = new DeckMaker.MoveTool();
+        selectTool = new DeckMaker.SelectTool();
+        resizeTool = new DeckMaker.ResizeTool();
 
         DeckMaker.Location.drawOrder = 1;
         DeckMaker.Template.drawOrder = 1;
@@ -219,6 +263,7 @@
         setDeck("deck1");
 
         DeckMaker.setEnv("propertyPanel", propertyPanel);
+        DeckMaker.setEnv("deckPanel", deckPanel);
     }
     </script>
 </head>
@@ -235,15 +280,17 @@
     <div id="panZoom" class="button">PAN/ZOOM</div>
     <div id="location" class="button">LOCATION</div>
     <div id="move" class="button">MOVE</div>
+    <div id="resize" class="button">RESIZE</div>
     <div></div>
-    <div id="deck1" class="button">DECK1</div>
+    <!--div id="deck1" class="button">DECK1</div>
     <div id="deck2" class="button">DECK2</div>
     <div id="deck3" class="button">DECK3</div>
-    <div id="deck4" class="button">DECK4</div>
+    <div id="deck4" class="button">DECK4</div-->
     <div></div>
-    <div id='undo' class="button">UNDO</div>
-    <div id='redo' class="button">REDO</div>
-    <div id='mainLayout'>
+    <div id="undo" class="button">UNDO</div>
+    <div id="redo" class="button">REDO</div>
+    <div id="mainLayout">
+        <div id="deckPanel" width="100" height="400"></div>
         <canvas id="canvas" width="400" height="400"></canvas>
         <div id="propertyPanel" width="200" height="400">Properties:</div>
     </div>

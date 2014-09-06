@@ -37,12 +37,10 @@ module DeckMaker {
             this.height = maxY - minY;
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
+        draw(ctx: CanvasRenderingContext2D, transform: Transform) {
             var vertices = this.vertices;
             if (vertices.length < 4)
                 return;
-
-            var transform = this.getTransform();
 
             ctx.save();
             ctx.strokeStyle = this.deck.color;

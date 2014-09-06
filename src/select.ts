@@ -20,7 +20,7 @@ module DeckMaker {
             var index = this.selectedShapes.indexOf(shape);
             if (index !== -1) {
                 this.selectedShapes.splice(index, 1);
-                this.rebuild();
+                this.refresh();
             }
         }
 
@@ -31,7 +31,7 @@ module DeckMaker {
             else
                 this.selectedShapes.splice(index, 1);
 
-            this.rebuild();
+            this.refresh();
         }
 
         containsSelected(shape: Shape) {
@@ -44,7 +44,7 @@ module DeckMaker {
 
         setSelectedShapes(shapes: Shape[]) {
             this.selectedShapes = shapes.slice(); // copy
-            this.rebuild();
+            this.refresh();
         }
 
         // returns the instance
@@ -58,14 +58,14 @@ module DeckMaker {
 
         clearSelectedShapes() {
             this.selectedShapes.length = 0;
-            this.rebuild();
+            this.refresh();
         }
 
-        draw(ctx) {
-            this.selectGroup.draw(ctx);
+        draw(ctx: CanvasRenderingContext2D, parentTransform: Transform) {
+            this.selectGroup.draw(ctx, parentTransform);
         }
 
-        rebuild() {
+        refresh() {
             this.selectGroup.setShapes(this.selectedShapes);
         }
     }

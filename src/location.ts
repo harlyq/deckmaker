@@ -49,17 +49,22 @@ module DeckMaker {
                 this.removeCard(cards[i]);
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
+        draw(ctx: CanvasRenderingContext2D, transform: Transform) {
             ctx.save();
 
             ctx.beginPath();
             ctx.lineWidth = 1;
             ctx.strokeStyle = 'blue';
-            drawRect(ctx, this.getTransform(), this.width, this.height);
+            drawRect(ctx, transform, this.width, this.height);
             ctx.stroke();
 
-            for (var i = 0; i < this.cards.length; ++i)
-                this.cards[i].draw(ctx);
+            var cardTransform = new Transform();
+            for (var i = 0; i < this.cards.length; ++i) {
+                var card = this.cards[i];
+                cardTransform.copy(transform);
+                cardTransform.postMultiply(card.getTransform());
+                card.draw(ctx);
+            }
 
             ctx.restore();
         }

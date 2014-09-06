@@ -205,11 +205,19 @@ module DeckMaker {
             return this;
         }
 
-        multiply(other: Transform): Transform {
+        postMultiply(other: Transform): Transform {
+            this.tx = other.tx * this.sx + this.tx;
+            this.ty = other.ty * this.sy + this.ty;
             this.sx *= other.sx;
             this.sy *= other.sy;
-            this.tx += other.tx;
-            this.ty += other.ty;
+            return this;
+        }
+
+        preMultiply(other: Transform): Transform {
+            this.tx = this.tx * other.sx + other.tx;
+            this.ty = this.ty * other.sy + other.ty;
+            this.sx *= other.sx;
+            this.sy *= other.sy;
             return this;
         }
 
@@ -244,6 +252,8 @@ module DeckMaker {
                 y: ly * this.sy + this.ty
             };
         }
+
+        static Identity = new Transform();
     }
 
 

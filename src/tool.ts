@@ -21,7 +21,7 @@ module DeckMaker {
             return false;
         }
 
-        draw(ctx: CanvasRenderingContext2D) {}
+        draw(ctx: CanvasRenderingContext2D, parentTransform: Transform) {}
 
         onTouched(touch: Touch, page: Page, pos: XY) {}
     }
@@ -89,12 +89,12 @@ module DeckMaker {
             }
 
             if (isUsed) {
-                toolLayer.rebuild();
+                page.rebuildLayer(ToolLayer);
                 page.refresh();
             }
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
+        draw(ctx: CanvasRenderingContext2D, parentTransform: Transform) {
             if (!this.hasFocus)
                 return;
 
@@ -119,13 +119,13 @@ module DeckMaker {
 
         redo() {
             this.templateLayer.addShapes([this.location]);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(TemplateLayer);
             this.page.refresh();
         }
 
         undo() {
             this.templateLayer.removeShapes([this.location]);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(TemplateLayer);
             this.page.refresh();
         }
     }
@@ -142,32 +142,23 @@ module DeckMaker {
 
         onTouched(touch: Touch, page: Page, pos: XY) {
             var panZoom = page.panZoom;
-            var isUsed = false;
+            var hadFocus = this.hasFocus;
 
             switch (touch.state) {
                 case TouchState.Down:
                     this.hasFocus = true;
-                    isUsed = true;
-                    if (typeof touch.x2 !== "undefined") {
-                        this.oldDistance = distance(touch.x, touch.y, touch.x2, touch.y2);
-                        this.oldCX = (touch.x + touch.x2) >> 1;
-                        this.oldCY = (touch.y + touch.y2) >> 1;
-                    }
                     break;
 
                 case TouchState.Move:
                     if (this.hasFocus) {
                         panZoom.tx += touch.dx;
                         panZoom.ty += touch.dy;
-                        isUsed = true;
                     }
                     break;
 
                 case TouchState.Up:
-                    if (this.hasFocus) {
+                    if (this.hasFocus)
                         this.hasFocus = false;
-                        isUsed = true;
-                    }
                     break;
 
                 case TouchState.Wheel:
@@ -177,12 +168,12 @@ module DeckMaker {
                     panZoom.ty = touch.y - (touch.y - panZoom.ty) * scale;
                     panZoom.sx *= scale;
                     panZoom.sy *= scale;
-                    isUsed = true;
+                    hadFocus = true;
                     break;
             }
 
-            if (isUsed)
-                page.refresh();
+            if (hadFocus || this.hasFocus)
+                page.rebuild();
         }
     }
 
@@ -216,7 +207,7 @@ module DeckMaker {
             this.canvas.width = picture.width;
             this.canvas.height = picture.height;
 
-            picture.draw(this.ctx);
+            picture.draw(this.ctx, Transform.Identity);
 
             var firstColor: Color;
             var alphaColor = new Color(0, 0, 0, 0);
@@ -244,7 +235,7 @@ module DeckMaker {
             this.ctx.putImageData(imageData, 0, 0);
             picture.setSrc(this.canvas.toDataURL());
 
-            pictureLayer.rebuild();
+            page.rebuildLayer(PictureLayer);
             page.refresh();
         }
     }
@@ -283,20 +274,30 @@ module DeckMaker {
             this.canvas.width = shape.width;
             this.canvas.height = shape.height;
 
-            shape.draw(this.ctx);
+            shape.draw(this.ctx, Transform.Identity);
 
-            var used = new Color(0, 0, 0, 0);
+            var used: Color;
             var minX = 1e10;
             var maxX = -1e10;
             var minY = 1e10;
             var maxY = -1e10;
+
+            var matchOpaque: boolean;
+            var firstMatch = true;
+            var ALPHA_THRESHOLD = 100;
 
             var imageData = floodFill({
                 ctx: this.ctx,
                 x: picturePos.x,
                 y: picturePos.y,
                 match: function(col: Color): boolean {
-                    return col.a > 1;
+                    if (firstMatch) {
+                        matchOpaque = (col.a > ALPHA_THRESHOLD);
+                        used = col.clone();
+                        used.a = 255 - col.a;
+                        firstMatch = false;
+                    }
+                    return matchOpaque ? col.a > ALPHA_THRESHOLD : col.a <= ALPHA_THRESHOLD;
                 },
                 change: function(imageData: ImageData, x: number, y: number, pixel: number) {
                     minX = Math.min(x, minX);
@@ -313,8 +314,9 @@ module DeckMaker {
             var newTemplate = new Template(
                 [0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY],
                 page);
-            newTemplate.getTransform().copy(shape.getTransform());
-            newTemplate.getTransform().translate(minX, minY); // top left
+            var templateTransform = newTemplate.getTransform();
+            templateTransform.copy(shape.getTransform());
+            templateTransform.translate(minX, minY); // top left
 
             page.getCommandList().addCommand(new AutoTemplateCommand([newTemplate]));
             page.getSelection().setSelectedShapes([newTemplate]);
@@ -349,21 +351,21 @@ module DeckMaker {
         redo() {
             this.deck.addTemplates(this.templates);
             this.templateLayer.addShapes(this.templates);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(TemplateLayer);
             this.page.refresh();
         }
 
         undo() {
             this.deck.removeTemplates(this.templates);
             this.templateLayer.removeShapes(this.templates);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(TemplateLayer);
             this.page.refresh();
         }
     }
 
     //---------------------------------
     export class PictureTool extends Tool {
-        addPicture(src: string) {
+        addPicture(src: string): Picture {
             var page: Page = getEnv("page");
             if (!page)
                 return;
@@ -374,6 +376,8 @@ module DeckMaker {
             var picture = new Picture(src);
             picture.getTransform().translate(10, 10);
             page.getCommandList().addCommand(new PictureCommand(picture));
+
+            return picture;
         }
     }
 
@@ -389,13 +393,13 @@ module DeckMaker {
 
         redo() {
             this.pictureLayer.addShapes([this.picture]);
-            this.pictureLayer.rebuild();
+            this.page.rebuildLayer(PictureLayer);
             this.page.refresh();
         }
 
         undo() {
             this.pictureLayer.removeShapes([this.picture]);
-            this.pictureLayer.rebuild();
+            this.page.rebuildLayer(PictureLayer);
             this.page.refresh();
         }
     }
@@ -466,8 +470,8 @@ module DeckMaker {
                 case TouchState.Up:
                     if (this.hasFocus) {
                         groupShape.applyTransformToShapes();
-                        pictureLayer.rebuild();
-                        templateLayer.rebuild();
+                        page.rebuildLayer(PictureLayer);
+                        page.rebuildLayer(TemplateLayer);
 
                         var shapes = selection.getSelectedShapes();
                         var moveCommand = new MoveCommand(shapes, this.oldTransforms);
@@ -480,7 +484,7 @@ module DeckMaker {
             }
 
             if (this.hasFocus || hadFocus) {
-                toolLayer.rebuild();
+                page.rebuildLayer(ToolLayer);
                 page.refresh();
             }
         }
@@ -571,12 +575,12 @@ module DeckMaker {
             }
 
             if (this.hasFocus || hadFocus) {
-                toolLayer.rebuild();
+                page.rebuildLayer(ToolLayer);
                 page.refresh();
             }
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
+        draw(ctx: CanvasRenderingContext2D, parentTransform: Transform) {
             var page = getEnv('page');
             if (!page)
                 return;
@@ -704,7 +708,7 @@ module DeckMaker {
             }
 
             if (this.hasFocus || hadFocus) {
-                toolLayer.rebuild();
+                page.rebuildLayer(ToolLayer);
                 page.refresh();
             }
         }

@@ -806,11 +806,19 @@ var DeckMaker;
             return this;
         };
 
-        Transform.prototype.multiply = function (other) {
+        Transform.prototype.postMultiply = function (other) {
+            this.tx = other.tx * this.sx + this.tx;
+            this.ty = other.ty * this.sy + this.ty;
             this.sx *= other.sx;
             this.sy *= other.sy;
-            this.tx += other.tx;
-            this.ty += other.ty;
+            return this;
+        };
+
+        Transform.prototype.preMultiply = function (other) {
+            this.tx = this.tx * other.sx + other.tx;
+            this.ty = this.ty * other.sy + other.ty;
+            this.sx *= other.sx;
+            this.sy *= other.sy;
             return this;
         };
 
@@ -845,6 +853,8 @@ var DeckMaker;
                 y: ly * this.sy + this.ty
             };
         };
+
+        Transform.Identity = new Transform();
         return Transform;
     })();
     DeckMaker.Transform = Transform;
@@ -941,7 +951,7 @@ var DeckMaker;
         };
 
         TouchManager.prototype.mouseWheel = function (e) {
-            this.callback(new Touch(3 /* Wheel */, this.lastX, this.lastY, e.deltaX, e.deltaY));
+            this.callback(new Touch(3 /* Wheel */, this.mouseX, this.mouseY, e.deltaX, e.deltaY));
         };
 
         TouchManager.prototype.sendTouchEvent = function (e, state) {
@@ -1024,7 +1034,7 @@ var DeckMaker;
             this.height = 0;
             this.transform = new DeckMaker.Transform();
         }
-        Shape.prototype.draw = function (ctx) {
+        Shape.prototype.draw = function (ctx, transform) {
         };
 
         Shape.prototype.isInside = function (x, y) {
@@ -1071,12 +1081,12 @@ var DeckMaker;
         function Picture(src) {
             _super.call(this);
             this.image = new Image();
+            this.svg = '';
             this.keepAspectRatio = true;
 
             this.setSrc(src);
         }
-        Picture.prototype.draw = function (ctx) {
-            var transform = this.getTransform();
+        Picture.prototype.draw = function (ctx, transform) {
             var width = this.width * transform.sx;
             var height = this.height * transform.sy;
             if (this.keepAspectRatio) {
@@ -1097,6 +1107,10 @@ var DeckMaker;
             this.image.src = src;
             this.width = this.image.width;
             this.height = this.image.height;
+        };
+
+        Picture.prototype.setSVG = function (svg) {
+            this.svg = svg;
         };
         return Picture;
     })(Shape);
@@ -1131,24 +1145,23 @@ var DeckMaker;
         GroupShape.prototype.applyTransformToShapes = function () {
             var transform = new DeckMaker.Transform();
             var diffTransform = this.getTransform().clone();
-            diffTransform.multiply(this.invGroupTransform);
+            diffTransform.postMultiply(this.invGroupTransform);
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 transform.copy(this.oldTransforms[i]);
-                transform.multiply(diffTransform);
+                transform.postMultiply(diffTransform);
                 this.shapes[i].getTransform().copy(transform);
             }
         };
 
-        GroupShape.prototype.draw = function (ctx) {
+        GroupShape.prototype.draw = function (ctx, transform) {
             ctx.save();
 
             ctx.beginPath();
             ctx.strokeStyle = "green";
             ctx.lineWidth = 1;
-            drawRect(ctx, this.getTransform(), this.width, this.height);
 
-            var transform = new DeckMaker.Transform();
+            drawRect(ctx, transform, this.width, this.height);
 
             // for (var i = 0; i < this.shapes.length; ++i) {
             //     var shape = this.shapes[i];
@@ -1159,13 +1172,13 @@ var DeckMaker;
             //     ctx.rect(0, 0, shape.width, shape.height);
             //     // ctx.restore();
             // }
-            var diffTransform = this.getTransform().clone();
-            diffTransform.multiply(this.invGroupTransform);
+            var diffTransform = transform.clone();
+            diffTransform.postMultiply(this.invGroupTransform);
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
                 transform.copy(this.oldTransforms[i]);
-                transform.multiply(diffTransform);
+                transform.postMultiply(diffTransform);
                 drawRect(ctx, transform, shape.width, shape.height);
             }
             ctx.stroke();
@@ -1241,7 +1254,7 @@ var DeckMaker;
             var index = this.selectedShapes.indexOf(shape);
             if (index !== -1) {
                 this.selectedShapes.splice(index, 1);
-                this.rebuild();
+                this.refresh();
             }
         };
 
@@ -1252,7 +1265,7 @@ var DeckMaker;
             else
                 this.selectedShapes.splice(index, 1);
 
-            this.rebuild();
+            this.refresh();
         };
 
         SelectList.prototype.containsSelected = function (shape) {
@@ -1265,7 +1278,7 @@ var DeckMaker;
 
         SelectList.prototype.setSelectedShapes = function (shapes) {
             this.selectedShapes = shapes.slice(); // copy
-            this.rebuild();
+            this.refresh();
         };
 
         // returns the instance
@@ -1279,14 +1292,14 @@ var DeckMaker;
 
         SelectList.prototype.clearSelectedShapes = function () {
             this.selectedShapes.length = 0;
-            this.rebuild();
+            this.refresh();
         };
 
-        SelectList.prototype.draw = function (ctx) {
-            this.selectGroup.draw(ctx);
+        SelectList.prototype.draw = function (ctx, parentTransform) {
+            this.selectGroup.draw(ctx, parentTransform);
         };
 
-        SelectList.prototype.rebuild = function () {
+        SelectList.prototype.refresh = function () {
             this.selectGroup.setShapes(this.selectedShapes);
         };
         return SelectList;
@@ -1403,7 +1416,7 @@ var DeckMaker;
             return this;
         };
 
-        Layer.prototype.rebuild = function () {
+        Layer.prototype.rebuild = function (parentTransform) {
             var ctx = this.ctx;
             var w = this.width;
             var h = this.height;
@@ -1414,13 +1427,16 @@ var DeckMaker;
             ctx.strokeRect(0, 0, w, h);
             ctx.restore();
 
+            var transform = new DeckMaker.Transform();
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
 
                 // ctx.save();
                 // if (shape.transform instanceof Transform)
                 //     shape.transform.draw(ctx);
-                shape.draw(ctx);
+                transform.copy(parentTransform);
+                transform.postMultiply(shape.getTransform());
+                shape.draw(ctx, transform);
                 // ctx.restore();
             }
         };
@@ -1495,11 +1511,11 @@ var DeckMaker;
             return this;
         };
 
-        ToolLayer.prototype.rebuild = function () {
-            _super.prototype.rebuild.call(this);
+        ToolLayer.prototype.rebuild = function (parentTransform) {
+            _super.prototype.rebuild.call(this, parentTransform);
 
             for (var i = 0; i < this.tools.length; ++i) {
-                this.tools[i].draw(this.ctx);
+                this.tools[i].draw(this.ctx, parentTransform);
             }
         };
         return ToolLayer;
@@ -1557,18 +1573,18 @@ var DeckMaker;
             for (var i = 0; i < this.layers.length; ++i) {
                 var layer = this.layers[i];
                 if (layer instanceof type)
-                    layer.rebuild();
+                    layer.rebuild(this.panZoom);
             }
 
-            this.selection.rebuild();
+            this.selection.refresh();
             this.refresh();
         };
 
         Page.prototype.rebuild = function () {
             for (var i = 0; i < this.layers.length; ++i)
-                this.layers[i].rebuild();
+                this.layers[i].rebuild(this.panZoom);
 
-            this.selection.rebuild();
+            this.selection.refresh();
             this.refresh();
         };
 
@@ -1577,7 +1593,6 @@ var DeckMaker;
             ctx.clearRect(0, 0, this.parent.width, this.parent.height);
 
             ctx.save();
-            this.panZoom.draw(ctx);
             for (var i = 0; i < this.layers.length; ++i)
                 this.layers[i].draw(ctx);
             ctx.restore();
@@ -1656,12 +1671,10 @@ var DeckMaker;
             this.height = maxY - minY;
         };
 
-        Template.prototype.draw = function (ctx) {
+        Template.prototype.draw = function (ctx, transform) {
             var vertices = this.vertices;
             if (vertices.length < 4)
                 return;
-
-            var transform = this.getTransform();
 
             ctx.save();
             ctx.strokeStyle = this.deck.color;
@@ -1780,17 +1793,22 @@ var DeckMaker;
                 this.removeCard(cards[i]);
         };
 
-        Location.prototype.draw = function (ctx) {
+        Location.prototype.draw = function (ctx, transform) {
             ctx.save();
 
             ctx.beginPath();
             ctx.lineWidth = 1;
             ctx.strokeStyle = 'blue';
-            DeckMaker.drawRect(ctx, this.getTransform(), this.width, this.height);
+            DeckMaker.drawRect(ctx, transform, this.width, this.height);
             ctx.stroke();
 
-            for (var i = 0; i < this.cards.length; ++i)
-                this.cards[i].draw(ctx);
+            var cardTransform = new DeckMaker.Transform();
+            for (var i = 0; i < this.cards.length; ++i) {
+                var card = this.cards[i];
+                cardTransform.copy(transform);
+                cardTransform.postMultiply(card.getTransform());
+                card.draw(ctx);
+            }
 
             ctx.restore();
         };
@@ -2165,7 +2183,7 @@ var DeckMaker;
             return false;
         };
 
-        Tool.prototype.draw = function (ctx) {
+        Tool.prototype.draw = function (ctx, parentTransform) {
         };
 
         Tool.prototype.onTouched = function (touch, page, pos) {
@@ -2236,12 +2254,12 @@ var DeckMaker;
             }
 
             if (isUsed) {
-                toolLayer.rebuild();
+                page.rebuildLayer(DeckMaker.ToolLayer);
                 page.refresh();
             }
         };
 
-        LocationTool.prototype.draw = function (ctx) {
+        LocationTool.prototype.draw = function (ctx, parentTransform) {
             if (!this.hasFocus)
                 return;
 
@@ -2265,13 +2283,13 @@ var DeckMaker;
         }
         LocationCommand.prototype.redo = function () {
             this.templateLayer.addShapes([this.location]);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(DeckMaker.TemplateLayer);
             this.page.refresh();
         };
 
         LocationCommand.prototype.undo = function () {
             this.templateLayer.removeShapes([this.location]);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(DeckMaker.TemplateLayer);
             this.page.refresh();
         };
         return LocationCommand;
@@ -2285,32 +2303,23 @@ var DeckMaker;
         }
         PanZoomTool.prototype.onTouched = function (touch, page, pos) {
             var panZoom = page.panZoom;
-            var isUsed = false;
+            var hadFocus = this.hasFocus;
 
             switch (touch.state) {
                 case 0 /* Down */:
                     this.hasFocus = true;
-                    isUsed = true;
-                    if (typeof touch.x2 !== "undefined") {
-                        this.oldDistance = DeckMaker.distance(touch.x, touch.y, touch.x2, touch.y2);
-                        this.oldCX = (touch.x + touch.x2) >> 1;
-                        this.oldCY = (touch.y + touch.y2) >> 1;
-                    }
                     break;
 
                 case 1 /* Move */:
                     if (this.hasFocus) {
                         panZoom.tx += touch.dx;
                         panZoom.ty += touch.dy;
-                        isUsed = true;
                     }
                     break;
 
                 case 2 /* Up */:
-                    if (this.hasFocus) {
+                    if (this.hasFocus)
                         this.hasFocus = false;
-                        isUsed = true;
-                    }
                     break;
 
                 case 3 /* Wheel */:
@@ -2320,12 +2329,12 @@ var DeckMaker;
                     panZoom.ty = touch.y - (touch.y - panZoom.ty) * scale;
                     panZoom.sx *= scale;
                     panZoom.sy *= scale;
-                    isUsed = true;
+                    hadFocus = true;
                     break;
             }
 
-            if (isUsed)
-                page.refresh();
+            if (hadFocus || this.hasFocus)
+                page.rebuild();
         };
         return PanZoomTool;
     })(Tool);
@@ -2358,7 +2367,7 @@ var DeckMaker;
             this.canvas.width = picture.width;
             this.canvas.height = picture.height;
 
-            picture.draw(this.ctx);
+            picture.draw(this.ctx, DeckMaker.Transform.Identity);
 
             var firstColor;
             var alphaColor = new DeckMaker.Color(0, 0, 0, 0);
@@ -2383,7 +2392,7 @@ var DeckMaker;
             this.ctx.putImageData(imageData, 0, 0);
             picture.setSrc(this.canvas.toDataURL());
 
-            pictureLayer.rebuild();
+            page.rebuildLayer(DeckMaker.PictureLayer);
             page.refresh();
         };
         return AlphaFillTool;
@@ -2421,20 +2430,30 @@ var DeckMaker;
             this.canvas.width = shape.width;
             this.canvas.height = shape.height;
 
-            shape.draw(this.ctx);
+            shape.draw(this.ctx, DeckMaker.Transform.Identity);
 
-            var used = new DeckMaker.Color(0, 0, 0, 0);
+            var used;
             var minX = 1e10;
             var maxX = -1e10;
             var minY = 1e10;
             var maxY = -1e10;
+
+            var matchOpaque;
+            var firstMatch = true;
+            var ALPHA_THRESHOLD = 100;
 
             var imageData = DeckMaker.floodFill({
                 ctx: this.ctx,
                 x: picturePos.x,
                 y: picturePos.y,
                 match: function (col) {
-                    return col.a > 1;
+                    if (firstMatch) {
+                        matchOpaque = (col.a > ALPHA_THRESHOLD);
+                        used = col.clone();
+                        used.a = 255 - col.a;
+                        firstMatch = false;
+                    }
+                    return matchOpaque ? col.a > ALPHA_THRESHOLD : col.a <= ALPHA_THRESHOLD;
                 },
                 change: function (imageData, x, y, pixel) {
                     minX = Math.min(x, minX);
@@ -2449,8 +2468,9 @@ var DeckMaker;
                 return;
 
             var newTemplate = new DeckMaker.Template([0, 0, maxX - minX, 0, maxX - minX, maxY - minY, 0, maxY - minY], page);
-            newTemplate.getTransform().copy(shape.getTransform());
-            newTemplate.getTransform().translate(minX, minY); // top left
+            var templateTransform = newTemplate.getTransform();
+            templateTransform.copy(shape.getTransform());
+            templateTransform.translate(minX, minY); // top left
 
             page.getCommandList().addCommand(new AutoTemplateCommand([newTemplate]));
             page.getSelection().setSelectedShapes([newTemplate]);
@@ -2482,14 +2502,14 @@ var DeckMaker;
         AutoTemplateCommand.prototype.redo = function () {
             this.deck.addTemplates(this.templates);
             this.templateLayer.addShapes(this.templates);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(DeckMaker.TemplateLayer);
             this.page.refresh();
         };
 
         AutoTemplateCommand.prototype.undo = function () {
             this.deck.removeTemplates(this.templates);
             this.templateLayer.removeShapes(this.templates);
-            this.templateLayer.rebuild();
+            this.page.rebuildLayer(DeckMaker.TemplateLayer);
             this.page.refresh();
         };
         return AutoTemplateCommand;
@@ -2512,6 +2532,8 @@ var DeckMaker;
             var picture = new DeckMaker.Picture(src);
             picture.getTransform().translate(10, 10);
             page.getCommandList().addCommand(new PictureCommand(picture));
+
+            return picture;
         };
         return PictureTool;
     })(Tool);
@@ -2526,13 +2548,13 @@ var DeckMaker;
         }
         PictureCommand.prototype.redo = function () {
             this.pictureLayer.addShapes([this.picture]);
-            this.pictureLayer.rebuild();
+            this.page.rebuildLayer(DeckMaker.PictureLayer);
             this.page.refresh();
         };
 
         PictureCommand.prototype.undo = function () {
             this.pictureLayer.removeShapes([this.picture]);
-            this.pictureLayer.rebuild();
+            this.page.rebuildLayer(DeckMaker.PictureLayer);
             this.page.refresh();
         };
         return PictureCommand;
@@ -2613,8 +2635,8 @@ var DeckMaker;
                 case 2 /* Up */:
                     if (this.hasFocus) {
                         groupShape.applyTransformToShapes();
-                        pictureLayer.rebuild();
-                        templateLayer.rebuild();
+                        page.rebuildLayer(DeckMaker.PictureLayer);
+                        page.rebuildLayer(DeckMaker.TemplateLayer);
 
                         var shapes = selection.getSelectedShapes();
                         var moveCommand = new MoveCommand(shapes, this.oldTransforms);
@@ -2627,7 +2649,7 @@ var DeckMaker;
             }
 
             if (this.hasFocus || hadFocus) {
-                toolLayer.rebuild();
+                page.rebuildLayer(DeckMaker.ToolLayer);
                 page.refresh();
             }
         };
@@ -2714,12 +2736,12 @@ var DeckMaker;
             }
 
             if (this.hasFocus || hadFocus) {
-                toolLayer.rebuild();
+                page.rebuildLayer(DeckMaker.ToolLayer);
                 page.refresh();
             }
         };
 
-        SelectTool.prototype.draw = function (ctx) {
+        SelectTool.prototype.draw = function (ctx, parentTransform) {
             var page = DeckMaker.getEnv('page');
             if (!page)
                 return;
@@ -2857,7 +2879,7 @@ var DeckMaker;
             }
 
             if (this.hasFocus || hadFocus) {
-                toolLayer.rebuild();
+                page.rebuildLayer(DeckMaker.ToolLayer);
                 page.refresh();
             }
         };
@@ -2988,25 +3010,21 @@ var DeckMaker;
 /// <reference path="_dependencies.ts" />
 var DeckMaker;
 (function (DeckMaker) {
-    function createDeck(name) {
+    DeckMaker.createDeck = function (name) {
         var deck = new DeckMaker.Deck(name);
         DeckMaker.g_DeckManager.addDeck(deck);
         return deck;
-    }
-    DeckMaker.createDeck = createDeck;
+    };
 
-    function getDeckByName(name) {
+    DeckMaker.getDeckByName = function (name) {
         return DeckMaker.g_DeckManager.getDeckByName(name);
-    }
-    DeckMaker.getDeckByName = getDeckByName;
+    };
 
-    function setDeckByName(name) {
+    DeckMaker.setDeckByName = function (name) {
         DeckMaker.setEnv("deck", DeckMaker.g_DeckManager.getDeckByName(name));
-    }
-    DeckMaker.setDeckByName = setDeckByName;
+    };
 
-    function setDeckById(id) {
+    DeckMaker.setDeckById = function (id) {
         DeckMaker.setEnv("deck", DeckMaker.g_DeckManager.getDeckById(id));
-    }
-    DeckMaker.setDeckById = setDeckById;
+    };
 })(DeckMaker || (DeckMaker = {}));

@@ -185,8 +185,16 @@
             return;
 
         var reader = new FileReader();
+        var picture = null;
         reader.onloadend = function(e) {
-            pictureTool.addPicture(reader.result);
+            if (picture) {
+                picture.setSVG(reader.result);
+                return;
+            }
+
+            picture = pictureTool.addPicture(reader.result);
+            if (reader.result.substr(0, 19) == 'data:image/svg+xml;')
+                reader.readAsText(file); // re-read the svg
         }
         reader.readAsDataURL(file);
     }

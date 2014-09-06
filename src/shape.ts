@@ -33,7 +33,7 @@ module DeckMaker {
         height: number = 0;
         private transform: Transform = new Transform();
 
-        draw(ctx: CanvasRenderingContext2D) {}
+        draw(ctx: CanvasRenderingContext2D, transform: Transform) {}
 
         isInside(x: number, y: number): boolean {
             var pos = this.transform.getLocal(x, y);
@@ -78,6 +78,7 @@ module DeckMaker {
     //---------------------------------
     export class Picture extends Shape {
         private image = new Image();
+        svg: string = '';
         keepAspectRatio: boolean = true;
 
         constructor(src: string) {
@@ -86,8 +87,7 @@ module DeckMaker {
             this.setSrc(src);
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
-            var transform = this.getTransform();
+        draw(ctx: CanvasRenderingContext2D, transform: Transform) {
             var width = this.width * transform.sx;
             var height = this.height * transform.sy;
             if (this.keepAspectRatio) {
@@ -108,6 +108,10 @@ module DeckMaker {
             this.image.src = src;
             this.width = this.image.width;
             this.height = this.image.height;
+        }
+
+        setSVG(svg: string) {
+            this.svg = svg;
         }
     }
 
@@ -138,24 +142,23 @@ module DeckMaker {
         applyTransformToShapes() {
             var transform = new Transform();
             var diffTransform = this.getTransform().clone();
-            diffTransform.multiply(this.invGroupTransform);
+            diffTransform.postMultiply(this.invGroupTransform);
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 transform.copy(this.oldTransforms[i]);
-                transform.multiply(diffTransform);
+                transform.postMultiply(diffTransform);
                 this.shapes[i].getTransform().copy(transform);
             }
         }
 
-        draw(ctx: CanvasRenderingContext2D) {
+        draw(ctx: CanvasRenderingContext2D, transform: Transform) {
             ctx.save();
 
             ctx.beginPath();
             ctx.strokeStyle = "green";
             ctx.lineWidth = 1;
-            drawRect(ctx, this.getTransform(), this.width, this.height);
 
-            var transform = new Transform();
+            drawRect(ctx, transform, this.width, this.height);
 
             // for (var i = 0; i < this.shapes.length; ++i) {
             //     var shape = this.shapes[i];
@@ -167,13 +170,13 @@ module DeckMaker {
             //     // ctx.restore();
             // }
 
-            var diffTransform = this.getTransform().clone();
-            diffTransform.multiply(this.invGroupTransform);
+            var diffTransform = transform.clone();
+            diffTransform.postMultiply(this.invGroupTransform);
 
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
                 transform.copy(this.oldTransforms[i]);
-                transform.multiply(diffTransform);
+                transform.postMultiply(diffTransform);
                 drawRect(ctx, transform, shape.width, shape.height);
             }
             ctx.stroke();

@@ -64,7 +64,7 @@ module DeckMaker {
             return this;
         }
 
-        rebuild() {
+        rebuild(parentTransform: Transform) {
             var ctx = this.ctx;
             var w = this.width;
             var h = this.height;
@@ -75,7 +75,7 @@ module DeckMaker {
             ctx.strokeRect(0, 0, w, h);
             ctx.restore();
 
-
+            var transform = new Transform();
             for (var i = 0; i < this.shapes.length; ++i) {
                 var shape = this.shapes[i];
 
@@ -83,7 +83,9 @@ module DeckMaker {
                 // if (shape.transform instanceof Transform)
                 //     shape.transform.draw(ctx);
 
-                shape.draw(ctx);
+                transform.copy(parentTransform);
+                transform.postMultiply(shape.getTransform());
+                shape.draw(ctx, transform);
                 // ctx.restore();
             }
         }
@@ -144,11 +146,11 @@ module DeckMaker {
             return this;
         }
 
-        rebuild() {
-            super.rebuild();
+        rebuild(parentTransform: Transform) {
+            super.rebuild(parentTransform);
 
             for (var i = 0; i < this.tools.length; ++i) {
-                this.tools[i].draw(this.ctx);
+                this.tools[i].draw(this.ctx, parentTransform);
             }
         }
     }

@@ -82,7 +82,7 @@ module DeckMaker {
         }
 
         private mouseWheel(e: WheelEvent) {
-            this.callback(new Touch(TouchState.Wheel, this.lastX, this.lastY, e.deltaX, e.deltaY));
+            this.callback(new Touch(TouchState.Wheel, this.mouseX, this.mouseY, e.deltaX, e.deltaY));
         }
 
         private sendTouchEvent(e: TouchEvent, state: TouchState) {

@@ -52,18 +52,18 @@ module DeckMaker {
             for (var i = 0; i < this.layers.length; ++i) {
                 var layer = this.layers[i];
                 if (layer instanceof type)
-                    layer.rebuild();
+                    layer.rebuild(this.panZoom);
             }
 
-            this.selection.rebuild();
+            this.selection.refresh();
             this.refresh();
         }
 
         rebuild() {
             for (var i = 0; i < this.layers.length; ++i)
-                this.layers[i].rebuild();
+                this.layers[i].rebuild(this.panZoom);
 
-            this.selection.rebuild();
+            this.selection.refresh();
             this.refresh();
         }
 
@@ -72,7 +72,6 @@ module DeckMaker {
             ctx.clearRect(0, 0, this.parent.width, this.parent.height);
 
             ctx.save();
-            this.panZoom.draw(ctx);
             for (var i = 0; i < this.layers.length; ++i)
                 this.layers[i].draw(ctx);
             ctx.restore();
